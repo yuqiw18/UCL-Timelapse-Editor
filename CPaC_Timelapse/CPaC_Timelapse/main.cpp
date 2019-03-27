@@ -9,7 +9,6 @@ Coded By Yuqi Wang (18043263)
 Runtime: WINDOWS X64 + OpenCV 3.4 + CUDA 9.1 
 */
 
-
 #include <opencv2/opencv.hpp>
 #include <windows.h>
 #include <iostream>
@@ -53,14 +52,13 @@ int main(void){
 
 	// Init cvui and tell it to create a OpenCV window, i.e. cv::namedWindow(WINDOW_NAME).
 	int count = 0;
-	cv::Mat gui = cv::Mat(600, 800, CV_8UC3);
+	cv::Mat gui = cv::Mat(650, 800, CV_8UC3);
 	gui = cv::Scalar(49, 52, 49);
 	bool use_canny = false;
 	int low_threshold = 50, high_threshold = 150;
 
 	cv::namedWindow(WINDOW_NAME);
 	cvui::init(WINDOW_NAME);
-
 
 	// 
 	cv::VideoCapture footage;
@@ -81,8 +79,10 @@ int main(void){
 	int sequence_length = 1;
 
 	bool idle = false;
+	//std::string WORKING_STATUS = "Idle";
 
-	std::string play_button_name = "Play";
+	std::string PREVIEWER_BUTTON = "Play";
+	std::string EDITOR_MODE = "Create TL";
 
 	while (true) {
 		
@@ -104,22 +104,29 @@ int main(void){
 				else {
 					footage = input_video;
 					video_input_ready = true;
+					
 				}
 			}
 		}
 
-		if (cvui::button(gui, 12, 68, 128, 32, "Export Video")) {
-			count++;
+		if (cvui::button(gui, 12, 68, 128, 32, "Export(V)")) {
+			if (GetSaveFileName(&ofn) == TRUE) {
+				
+			}
 		}
 
 		// GUI: Editor
-		cvui::window(gui, 6, 112, 140, 180, "Editor");
-		if (cvui::button(gui, 12, 138, 128, 32, "Load Image")) {
-			if (GetOpenFileName(&ofn) == TRUE) {
-
-
+		cvui::window(gui, 6, 112, 140, 484, "Editor: "+EDITOR_MODE);
+		if (cvui::button(gui, 12, 138, 128, 32, "Change Mode")) {
+			if (EDITOR_MODE == "Create TL") {
+				EDITOR_MODE = "Modify TL";
+			}
+			else {
+				EDITOR_MODE = "Create TL";
 			}
 		}
+
+
 
 		if (cvui::button(gui, 12, 174, 128, 32, "Export Video")) {
 			count++;
@@ -135,12 +142,12 @@ int main(void){
 		cvui::window(gui, 150, 514, 644, 82, "Control");
 		cvui::trackbar(gui, 158, 540, 512, &current_frame, (int)0, (int)sequence_length, 1, "%.0Lf", cvui::TRACKBAR_DISCRETE, (int)1);
 		cvui::counter(gui, 690, 539, &current_frame);
-		if (cvui::button(gui, 690, 564, 92, 28, play_button_name)) {
+		if (cvui::button(gui, 690, 564, 92, 28, PREVIEWER_BUTTON)) {
 			if (!raw_sequence.empty()) {
 
 				if (is_video_play) {
 					is_video_play = false;
-					play_button_name = "Play";
+					PREVIEWER_BUTTON = "Play";
 				}
 				else {
 					// If reach the end frame
@@ -148,10 +155,13 @@ int main(void){
 						current_frame = 0;
 					}
 					is_video_play = true;
-					play_button_name = "Pause";
+					PREVIEWER_BUTTON = "Pause";
 				}
 			}
 		}
+
+		cvui::window(gui, 6, 600, 788, 44, "Output");
+		cvui::text(gui, 12, 626, ">");
 
 		// Frame check
 		if (current_frame < 0) {
@@ -191,7 +201,7 @@ int main(void){
 				cvui::image(gui, 152, 28, preview_sequence[current_frame]);
 				if (current_frame + 1 == raw_sequence.size()) {
 					is_video_play = false;
-					play_button_name = "Play";
+					PREVIEWER_BUTTON = "Play";
 				}
 				else {
 					current_frame++;
