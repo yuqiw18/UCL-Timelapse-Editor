@@ -6,24 +6,31 @@ Class Project Part B: Timelapse
 Coded By Yuqi Wang (18043263)
 */
 /*
-Runtime: WINDOWS X64 + OpenCV 3.4 + CUDA 9.1 
+Runtime: WINDOWS 10 X64 + OpenCV 3.4 + CUDA 9.1 + VS2017(v15)
+OpenCV CUDA Binaries: https://yuqi.dev/tools/opencv340cuda91.zip
 */
 
 #include <opencv2/opencv.hpp>
 #include <windows.h>
 #include <iostream>
-#include "tl.h"
+#include "tlt.h"
+#include "utility.h"
 #define CVUI_IMPLEMENTATION
 #include "cvui/cvui.h"
 
-#define WINDOW_NAME "Timelapse Toolbox"
+#define WINDOW_NAME "Time-Lapse Toolbox"
 #define PADDING_HORIZONTAL 6
 #define PADDING_VERTICAL 6
 
+// State Machine (Non-OO)
+const enum STATE { IDLE, LOAD, PROCESS, PLAY, SAVE };
+
 int main(void){
 	
+	STATE CURRENT_STATE = STATE::IDLE;
+
 	if (cv::cuda::getCudaEnabledDeviceCount() == 0) {
-		std::cout << "No Cuda" << std::endl;
+		std::cout << "No Cuda" << std::endl;	
 	}
 
 	// File browser
@@ -32,15 +39,12 @@ int main(void){
 	HWND hwnd = NULL;              // owner window
 	HANDLE hf;              // file handle
 
-	// Initialize OPENFILENAME
+	// Initialise OPENFILENAME
 	ZeroMemory(&ofn, sizeof(ofn));
 	ofn.lStructSize = sizeof(ofn);
 	ofn.hwndOwner = hwnd;
 	ofn.lpstrFile = szFile;
-	//
-	// Set lpstrFile[0] to '\0' so that GetOpenFileName does not 
-	// use the contents of szFile to initialize itself.
-	//
+
 	ofn.lpstrFile[0] = '\0';
 	ofn.nMaxFile = sizeof(szFile);
 	ofn.lpstrFilter = "All\0*.*\0Text\0*.TXT\0";
@@ -50,36 +54,22 @@ int main(void){
 	ofn.lpstrInitialDir = NULL;
 	ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 
-	// Init cvui and tell it to create a OpenCV window, i.e. cv::namedWindow(WINDOW_NAME).
-	int count = 0;
+	// Initialise GUI
 	cv::Mat gui = cv::Mat(650, 800, CV_8UC3);
 	gui = cv::Scalar(49, 52, 49);
-	bool use_canny = false;
-	int low_threshold = 50, high_threshold = 150;
-
 	cv::namedWindow(WINDOW_NAME);
 	cvui::init(WINDOW_NAME);
 
-	// 
+	// Initialise variables
 	cv::VideoCapture footage;
 	std::vector<cv::Mat> raw_sequence;
 	std::vector<cv::Mat> processed_sequence;
 	std::vector<cv::Mat> preview_sequence;
-
 	std::vector<cv::Mat> optical_flow;
 
-	bool video_input_ready = false;
-	bool sequence_loaded = false;
-
-	bool input_check_pass = false;
-
-	bool is_video_play = false;
 	int current_clip = 0;
 	int current_frame = 0;
 	int sequence_length = 1;
-
-	bool idle = false;
-	//std::string WORKING_STATUS = "Idle";
 
 	std::string PREVIEWER_BUTTON = "Play";
 	std::string EDITOR_MODE = "Create TL";
@@ -90,21 +80,26 @@ int main(void){
 		cvui::window(gui, 6, 6, 140, 100, "File");
 		if (cvui::button(gui, 12, 32, 128, 32,"Import(V/I)")) {
 			if (GetOpenFileName(&ofn) == TRUE) {
-				video_input_ready = false;
+
+				// Reset variables
+				//READY_TO_LOAD = false;
+				CURRENT_STATE = STATE::IDLE;
 				current_frame = 0;
 				sequence_length = 1;
 				raw_sequence.clear();
 				preview_sequence.clear();
 				preview_sequence.clear();
 
-				cv::VideoCapture input_video(ofn.lpstrFile);
+				// Determine file type
+				std::string file_path = UTIL::FilePathParser(ofn.lpstrFile);
+				cv::VideoCapture input_video(file_path);
 				if (!input_video.isOpened()) {
-					
+					std::cerr << "Invalid File" << std::endl;
 				}
 				else {
 					footage = input_video;
-					video_input_ready = true;
-					
+					CURRENT_STATE = STATE::LOAD;
+					//READY_TO_LOAD = true;
 				}
 			}
 		}
@@ -126,11 +121,10 @@ int main(void){
 			}
 		}
 
-
-
-		if (cvui::button(gui, 12, 174, 128, 32, "Export Video")) {
-			count++;
+		if (cvui::button(gui, 12, 174, 128, 32, "Function")) {
+		
 		}
+
 
 		// GUI: Previwer
 		cvui::window(gui, 150, 6, 644, 504, "Preview");
@@ -145,8 +139,8 @@ int main(void){
 		if (cvui::button(gui, 690, 564, 92, 28, PREVIEWER_BUTTON)) {
 			if (!raw_sequence.empty()) {
 
-				if (is_video_play) {
-					is_video_play = false;
+				if (CURRENT_STATE == STATE::PLAY) {
+					CURRENT_STATE = STATE::IDLE;
 					PREVIEWER_BUTTON = "Play";
 				}
 				else {
@@ -154,7 +148,7 @@ int main(void){
 					if (current_frame == sequence_length) {
 						current_frame = 0;
 					}
-					is_video_play = true;
+					CURRENT_STATE = STATE::PLAY;
 					PREVIEWER_BUTTON = "Pause";
 				}
 			}
@@ -172,13 +166,13 @@ int main(void){
 		}
 
 		// Start reading frames from selected video and store them into a vector
-		while (video_input_ready) {
+		while (CURRENT_STATE == STATE::LOAD) {
 			cv::Mat frame;
 			bool is_reading_video = footage.read(frame);
 
 			// If reach the end of video
 			if (!is_reading_video) {
-				video_input_ready = false;
+				CURRENT_STATE = STATE::IDLE;
 				sequence_length = preview_sequence.size()-1;
 				processed_sequence = raw_sequence;
 			}
@@ -197,10 +191,10 @@ int main(void){
 			}	
 
 			// Play the sequence
-			if (is_video_play) {
+			if (CURRENT_STATE == STATE::PLAY) {
 				cvui::image(gui, 152, 28, preview_sequence[current_frame]);
 				if (current_frame + 1 == raw_sequence.size()) {
-					is_video_play = false;
+					CURRENT_STATE = STATE::IDLE;
 					PREVIEWER_BUTTON = "Play";
 				}
 				else {
