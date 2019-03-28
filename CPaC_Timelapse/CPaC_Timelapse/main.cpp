@@ -121,8 +121,12 @@ int main(void){
 			}
 		}
 
-		if (cvui::button(gui, 12, 174, 128, 32, "Function")) {
-		
+		if (cvui::button(gui, 12, 174, 128, 32, "Retime")) {
+			if (optical_flow.empty() || optical_flow.size() + 1 != raw_sequence.size()) {
+				optical_flow = TLT::ComputeOpticalFlow(raw_sequence);
+			}
+
+			
 		}
 
 
