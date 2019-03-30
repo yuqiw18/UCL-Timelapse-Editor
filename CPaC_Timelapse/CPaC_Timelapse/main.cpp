@@ -126,7 +126,19 @@ int main(void){
 				optical_flow = TLT::ComputeOpticalFlow(raw_sequence);
 			}
 
-			
+			processed_sequence = TLT::RetimeSequence(raw_sequence, optical_flow, 3);
+
+			preview_sequence.clear();
+
+			for (int i = 0; i < processed_sequence.size(); i++) {
+				
+				cv::Mat current_frame = processed_sequence[i];
+				cv::resize(current_frame, current_frame, cv::Size(640, 480));
+				preview_sequence.push_back(current_frame);
+			}
+
+			sequence_length = preview_sequence.size() - 1;
+
 		}
 
 
