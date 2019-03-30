@@ -25,6 +25,11 @@ OpenCV CUDA Binaries: https://yuqi.dev/tools/opencv340cuda91.zip
 // State Machine (Non-OO)
 const enum STATE { IDLE, LOAD, PROCESS, PLAY, SAVE };
 
+
+//
+std::string LAST_SUCCESSFUL_OPERATION = "";
+
+
 int main(void){
 	
 	STATE CURRENT_STATE = STATE::IDLE;
@@ -126,7 +131,20 @@ int main(void){
 				optical_flow = TLT::ComputeOpticalFlow(raw_sequence);
 			}
 
-			processed_sequence = TLT::RetimeSequence(raw_sequence, optical_flow, 3);
+			//std::cout << optical_flow[0].at<cv::Vec2f>(0,0)[0] << std::endl;
+			//std::cout << optical_flow[0].at<cv::Vec2f>(0,0)[1] << std::endl;
+			std::cout << optical_flow[0].at<cv::Vec2f>(0, 0) << std::endl;
+
+			//std::vector<cv::Mat> map;
+			//cv::split(optical_flow[0], map);
+			//std::cout << map[0].at<float>(0,0) << std::endl;
+			//std::cout << map[1].at<float>(0,0) << std::endl;
+
+			//std::cout << optical_flow[1].at<cv::Vec2f>(0, 0)[0] << std::endl;
+			//std::cout << optical_flow[1].at<cv::Vec2f>(0, 0)[1] << std::endl;
+			std::cout << optical_flow[0].at<cv::Vec2f>(1, 1) << std::endl;
+
+			processed_sequence = TLT::RetimeSequence(raw_sequence, optical_flow, 4);
 
 			preview_sequence.clear();
 
@@ -134,7 +152,8 @@ int main(void){
 				
 				cv::Mat current_frame = processed_sequence[i];
 				cv::resize(current_frame, current_frame, cv::Size(640, 480));
-				preview_sequence.push_back(current_frame);
+				
+				preview_sequence.push_back(TLT::im2uint8(current_frame));
 			}
 
 			sequence_length = preview_sequence.size() - 1;
@@ -171,7 +190,7 @@ int main(void){
 		}
 
 		cvui::window(gui, 6, 600, 788, 44, "Output");
-		cvui::text(gui, 12, 626, ">");
+		cvui::text(gui, 12, 626, ">" + LAST_SUCCESSFUL_OPERATION);
 
 		// Frame check
 		if (current_frame < 0) {
@@ -194,7 +213,13 @@ int main(void){
 			}
 			else {
 				// Pass each frame to the image sequence vector
-				raw_sequence.push_back(frame);
+
+				//std::cout << frame.type() << std::endl;
+
+				//std::cout << frame.at<cv::Vec3b>(0, 0) << std::endl;
+				//frame.convertTo(frame, CV_32FC3, 1.0 / 255);
+				//std::cout << frame.at<cv::Vec3f>(0, 0) << std::endl;
+				raw_sequence.push_back(TLT::im2single(frame));
 				cv::resize(frame, frame, cv::Size(640, 480));
 				preview_sequence.push_back(frame);
 			}
@@ -202,14 +227,14 @@ int main(void){
 
 		// Show the frame in the preview
 		if (!raw_sequence.empty()) {
-			if (current_frame < raw_sequence.size()) {
+			if (current_frame < preview_sequence.size()) {
 				cvui::image(gui, 152, 28, preview_sequence[current_frame]);
 			}	
 
 			// Play the sequence
 			if (CURRENT_STATE == STATE::PLAY) {
 				cvui::image(gui, 152, 28, preview_sequence[current_frame]);
-				if (current_frame + 1 == raw_sequence.size()) {
+				if (current_frame + 1 == preview_sequence.size()) {
 					CURRENT_STATE = STATE::IDLE;
 					PREVIEWER_BUTTON = "Play";
 				}
