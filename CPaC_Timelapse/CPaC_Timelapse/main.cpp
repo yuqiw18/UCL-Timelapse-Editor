@@ -24,14 +24,16 @@ OpenCV CUDA Binaries: https://yuqi.dev/tools/opencv340cuda91.zip
 
 // State Machine (Non-OO)
 const enum STATE { IDLE, LOAD, PROCESS, PLAY, SAVE };
-
-
-//
+// Prompt
 std::string LAST_SUCCESSFUL_OPERATION = "";
-
 
 int main(void){
 	
+
+
+
+
+
 	STATE CURRENT_STATE = STATE::IDLE;
 
 	if (cv::cuda::getCudaEnabledDeviceCount() == 0) {

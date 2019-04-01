@@ -7,9 +7,9 @@
 #include "tlt.h"
 
 std::vector<cv::Mat> TLT::ComputeOpticalFlow(std::vector<cv::Mat> raw_sequence) {
-	std::cout << "@Computing Optical Flow" << std::endl;
+	std::cout << "@Computing Optical Flowv (Dense)" << std::endl;
 	
-	int cuda = false;
+	int cuda = true;
 
 	// Tic
 	clock_t start_time = std::clock();
@@ -18,8 +18,6 @@ std::vector<cv::Mat> TLT::ComputeOpticalFlow(std::vector<cv::Mat> raw_sequence) 
 
 	cv::cuda::GpuMat frame_previous, frame_next, frame_flow, corver_previous, corner_next;
 	
-
-
 	cv::Ptr<cv::FarnebackOpticalFlow> fof = cv::FarnebackOpticalFlow::create(3, 0.5, false, 15, 3);
 	cv::Ptr< cv::cuda::FarnebackOpticalFlow> fof_cuda = cv::cuda::FarnebackOpticalFlow::create(3, 0.5, false, 15, 3);
 
@@ -33,14 +31,6 @@ std::vector<cv::Mat> TLT::ComputeOpticalFlow(std::vector<cv::Mat> raw_sequence) 
 
 		cv::cuda::cvtColor(frame_previous, frame_previous, CV_BGR2GRAY);
 		cv::cuda::cvtColor(frame_next, frame_next, CV_BGR2GRAY);
-
-		// REQUIRE CORNER DETECTOR
-		//cv::Ptr< cv::cuda::CornersDetector> detector = cv::cuda::createGoodFeaturesToTrackDetector(frame_previous.type());
-		
-
-		//detector->detect(frame_previous,corver_previous);
-		//detector->detect(frame_next, corner_next);
-
 		fof_cuda->calc(frame_previous, frame_next, frame_flow);
 
 		frame_flow.download(flow);
@@ -75,20 +65,41 @@ std::vector<cv::Mat> TLT::RetimeSequence(std::vector<cv::Mat> raw_sequence, std:
 	cv::Mat previous_frame, next_frame, previous_interpolated_frame, next_interpolated_frame, weighted_flow, imwarp;
 	cv::Mat affine_warp, interpolated_frame, f0, f1;
 
-	
+	std::vector<cv::Mat> map;
 
-	for (int i = 0; i < raw_sequence.size() - 1; i++) {
+	cv::Mat hsv = cv::Mat(raw_sequence[0].size(), raw_sequence[0].type());
 
-		previous_frame = raw_sequence[i];
-		next_frame = raw_sequence[i + 1];
+	for (int i = 0; i < raw_sequence.size()-1; i++) {
 
-		std::vector<cv::Mat> map;
-		cv::split(optical_flow[i], map);
+		//std::cout << optical_flow[i].at<cv::Vec2f>(0,0)[0] << std::endl;
 
-		cv::remap(previous_frame, interpolated_frame, map[0], map[1], cv::INTER_LINEAR);
+		cv::Mat backward_flow = optical_flow[i];
 
-		processed_sequence.push_back(interpolated_frame);
+		cv::Mat map(backward_flow.size(), CV_32FC2);
+		for (int y = 0; y < map.rows; ++y)
+		{
+			for (int x = 0; x < map.cols; ++x)
+			{
+				cv::Point2f f = backward_flow.at<cv::Point2f>(y, x);
+				map.at<cv::Point2f>(y, x) = cv::Point2f(x + f.x, y + f.y);
+			}
+		}
 
+		cv::Mat none, warp;
+
+		cv::remap(raw_sequence[i], warp, map, none, cv::INTER_LINEAR);
+
+		//cv::remap(raw_sequence[i], warp, map[0], map[1], cv::INTER_LINEAR);
+		
+		processed_sequence.push_back(warp);
+
+		//previous_frame = raw_sequence[i];
+		//next_frame = raw_sequence[i + 1];
+
+		//std::vector<cv::Mat> map;
+		//cv::split(-1*optical_flow[i], map);
+
+		//cv::remap(previous_frame, interpolated_frame, optical_flow[i],cv::_InputArray::NONE,cv::INTER_LINEAR);
 
 		/*
 		processed_sequence.push_back(interpolated_frame);
@@ -113,9 +124,6 @@ std::vector<cv::Mat> TLT::RetimeSequence(std::vector<cv::Mat> raw_sequence, std:
 		*/
 
 	}
-
-
-
 
 
 	//cv::cuda::GpuMat previous_frame, next_frame, previous_interpolated_frame, next_interpolated_frame, weighted_flow, imwarp;
