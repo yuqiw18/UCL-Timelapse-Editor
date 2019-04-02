@@ -29,14 +29,10 @@ using namespace CF;
 const enum STATE { IDLE, LOAD, PROCESS, PLAY, SAVE };
 // Prompt
 std::string LAST_SUCCESSFUL_OPERATION = "";
+std::string EXPORT_PATH ="";
 
 int main(void){
 	
-
-
-
-
-
 	STATE CURRENT_STATE = STATE::IDLE;
 
 	if (cv::cuda::getCudaEnabledDeviceCount() == 0) {
@@ -76,6 +72,7 @@ int main(void){
 	std::vector<cv::Mat> processed_sequence;
 	std::vector<cv::Mat> preview_sequence;
 	std::vector<cv::Mat> optical_flow;
+	std::vector<cv::Mat> remap_xy;
 
 	int current_clip = 0;
 	int current_frame = 0;
@@ -86,9 +83,11 @@ int main(void){
 
 	while (true) {
 		
+		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		// GUI: Read & Save Files
 		cvui::window(gui, 6, 6, 140, 100, "File");
 		if (cvui::button(gui, 12, 32, 128, 32,"Import(V/I)")) {
+			ofn.lpstrFilter = "All\0*.*\0Text\0*.TXT\0";
 			if (GetOpenFileName(&ofn) == TRUE) {
 
 				// Reset variables
@@ -115,8 +114,10 @@ int main(void){
 		}
 
 		if (cvui::button(gui, 12, 68, 128, 32, "Export(V)")) {
+			ofn.lpstrFilter = "All\0*.*\0Text\0*.TXT\0";
 			if (GetSaveFileName(&ofn) == TRUE) {
-				
+				EXPORT_PATH = ofn.lpstrFile;
+				CURRENT_STATE = STATE::SAVE;
 			}
 		}
 
@@ -134,6 +135,7 @@ int main(void){
 		if (cvui::button(gui, 12, 174, 128, 32, "Retime")) {
 			if (optical_flow.empty() || optical_flow.size() + 1 != raw_sequence.size()) {
 				optical_flow = TLT::ComputeOpticalFlow(raw_sequence);
+				remap_xy = TLT::GetRemapMatrix(raw_sequence[0].rows, raw_sequence[0].cols);
 			}
 
 			//std::cout << optical_flow[0].at<cv::Vec2f>(0,0)[0] << std::endl;
@@ -149,7 +151,7 @@ int main(void){
 			//std::cout << optical_flow[1].at<cv::Vec2f>(0, 0)[1] << std::endl;
 			std::cout << optical_flow[0].at<cv::Vec2f>(1, 1) << std::endl;
 
-			processed_sequence = TLT::RetimeSequence(raw_sequence, optical_flow, 8);
+			processed_sequence = TLT::RetimeSequence(raw_sequence, optical_flow, remap_xy, 240);
 
 			preview_sequence.clear();
 
@@ -165,7 +167,6 @@ int main(void){
 			sequence_length = preview_sequence.size() - 1;
 
 		}
-
 
 		// GUI: Previwer
 		cvui::window(gui, 150, 6, 644, 504, "Preview");
@@ -197,7 +198,14 @@ int main(void){
 
 		cvui::window(gui, 6, 600, 788, 44, "Output");
 		cvui::text(gui, 12, 626, ">" + LAST_SUCCESSFUL_OPERATION);
+		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+
+
+
+
+
+		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		// Frame check
 		if (current_frame < 0) {
 			current_frame = 0;
@@ -215,7 +223,7 @@ int main(void){
 			if (!is_reading_video) {
 				CURRENT_STATE = STATE::IDLE;
 				sequence_length = preview_sequence.size()-1;
-				processed_sequence = raw_sequence;
+				processed_sequence = raw_sequence;		
 			}
 			else {
 				// Pass each frame to the image sequence vector
@@ -231,6 +239,20 @@ int main(void){
 				preview_sequence.push_back(frame);
 			}
 		}
+
+		while (CURRENT_STATE == STATE::SAVE) {
+			if (!processed_sequence.empty()) {
+				cv::VideoWriter video_writer(EXPORT_PATH, CV_FOURCC('M', 'J', 'P', 'G'), 24, processed_sequence[0].size());
+				for (int f = 0; f < processed_sequence.size(); f++) {
+					video_writer.write(im2uint8(processed_sequence[f]));
+				}
+				std::cout << "Saved" << std::endl;
+				video_writer.release();
+				CURRENT_STATE = STATE::IDLE;
+			}	
+		}
+
+
 
 		// Show the frame in the preview
 		if (!raw_sequence.empty()) {
@@ -254,6 +276,7 @@ int main(void){
 			}
 
 		}
+		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 		// Update the GUI
 		cvui::update();
