@@ -158,11 +158,13 @@
     </ProjectReference>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="custom_func.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="tlt.cpp" />
     <ClCompile Include="utility.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="custom_func.h" />
     <ClInclude Include="tlt.h" />
     <ClInclude Include="utility.h" />
   </ItemGroup>

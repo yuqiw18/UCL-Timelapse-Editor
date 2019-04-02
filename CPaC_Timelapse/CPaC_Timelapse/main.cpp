@@ -15,12 +15,15 @@ OpenCV CUDA Binaries: https://yuqi.dev/tools/opencv340cuda91.zip
 #include <iostream>
 #include "tlt.h"
 #include "utility.h"
+#include "custom_func.h"
 #define CVUI_IMPLEMENTATION
 #include "cvui/cvui.h"
 
 #define WINDOW_NAME "Time-Lapse Toolbox"
 #define PADDING_HORIZONTAL 6
 #define PADDING_VERTICAL 6
+
+using namespace CF;
 
 // State Machine (Non-OO)
 const enum STATE { IDLE, LOAD, PROCESS, PLAY, SAVE };
@@ -146,7 +149,7 @@ int main(void){
 			//std::cout << optical_flow[1].at<cv::Vec2f>(0, 0)[1] << std::endl;
 			std::cout << optical_flow[0].at<cv::Vec2f>(1, 1) << std::endl;
 
-			processed_sequence = TLT::RetimeSequence(raw_sequence, optical_flow, 4);
+			processed_sequence = TLT::RetimeSequence(raw_sequence, optical_flow, 8);
 
 			preview_sequence.clear();
 
@@ -155,7 +158,8 @@ int main(void){
 				cv::Mat current_frame = processed_sequence[i];
 				cv::resize(current_frame, current_frame, cv::Size(640, 480));
 				
-				preview_sequence.push_back(TLT::im2uint8(current_frame));
+				//preview_sequence.push_back(current_frame);
+				preview_sequence.push_back(im2uint8(current_frame));
 			}
 
 			sequence_length = preview_sequence.size() - 1;
@@ -221,7 +225,8 @@ int main(void){
 				//std::cout << frame.at<cv::Vec3b>(0, 0) << std::endl;
 				//frame.convertTo(frame, CV_32FC3, 1.0 / 255);
 				//std::cout << frame.at<cv::Vec3f>(0, 0) << std::endl;
-				raw_sequence.push_back(TLT::im2single(frame));
+				//raw_sequence.push_back(frame);
+				raw_sequence.push_back(im2single(frame));
 				cv::resize(frame, frame, cv::Size(640, 480));
 				preview_sequence.push_back(frame);
 			}
