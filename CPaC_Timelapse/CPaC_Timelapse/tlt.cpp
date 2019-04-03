@@ -85,7 +85,7 @@ std::vector<cv::Mat> TLT::RetimeSequence(std::vector<cv::Mat> raw_sequence, std:
 		frame_next.upload(raw_sequence[i + 1]);
 
 		// The optical flow is backward thus needs to be negated
-		cv::Mat current_flow = -optical_flow[i];
+		cv::Mat current_flow = optical_flow[i];
 
 		// Add original frame to the output sequence
 		processed_sequence.push_back(raw_sequence[i]);
@@ -99,12 +99,12 @@ std::vector<cv::Mat> TLT::RetimeSequence(std::vector<cv::Mat> raw_sequence, std:
 			cv::Mat f0, f1, frame_interp, none;
 
 			// Convert optical flow structure for image warping
-			std::vector<cv::Mat> flow_xy1 = ConvertFlowXY2(-current_flow * alpha, remap_xy);
+			std::vector<cv::Mat> flow_xy1 = ConvertFlowXY2(current_flow * ( 1.0f - alpha), remap_xy);
 			flow_x1.upload(flow_xy1[0]);
 			flow_y1.upload(flow_xy1[1]);
 			cv::cuda::remap(frame_prev, frame_prev_interp, flow_x1, flow_y1, cv::INTER_LINEAR);
 
-			std::vector<cv::Mat> flow_xy2 = ConvertFlowXY2(current_flow * (1 - alpha), remap_xy);
+			std::vector<cv::Mat> flow_xy2 = ConvertFlowXY2(-current_flow * alpha, remap_xy);
 			flow_x2.upload(flow_xy2[0]);
 			flow_y2.upload(flow_xy2[1]);
 			cv::cuda::remap(frame_next, frame_next_interp, flow_x2, flow_y2, cv::INTER_LINEAR);
@@ -114,7 +114,7 @@ std::vector<cv::Mat> TLT::RetimeSequence(std::vector<cv::Mat> raw_sequence, std:
 			frame_next_interp.download(f1);
 
 			// Weight interpolated frame
-			frame_interp = (1 - alpha) * f0 + alpha * f1;
+			frame_interp = (1.0f - alpha) * f0 + alpha * f1;
 
 			// Save the result
 			processed_sequence.push_back(frame_interp);

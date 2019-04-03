@@ -124,12 +124,15 @@ int main(void){
 		// GUI: Editor
 		cvui::window(gui, 6, 112, 140, 484, "Editor: "+EDITOR_MODE);
 		if (cvui::button(gui, 12, 138, 128, 32, "Change Mode")) {
-			if (EDITOR_MODE == "Create TL") {
-				EDITOR_MODE = "Modify TL";
-			}
-			else {
-				EDITOR_MODE = "Create TL";
-			}
+
+			cv::Rect2d roi = cv::selectROI(processed_sequence[0]);
+
+			//if (EDITOR_MODE == "Create TL") {
+			//	EDITOR_MODE = "Modify TL";
+			//}
+			//else {
+			//	EDITOR_MODE = "Create TL";
+			//}
 		}
 
 		if (cvui::button(gui, 12, 174, 128, 32, "Retime")) {
@@ -140,7 +143,7 @@ int main(void){
 
 			//std::cout << optical_flow[0].at<cv::Vec2f>(0,0)[0] << std::endl;
 			//std::cout << optical_flow[0].at<cv::Vec2f>(0,0)[1] << std::endl;
-			std::cout << optical_flow[0].at<cv::Vec2f>(0, 0) << std::endl;
+			//std::cout << optical_flow[0].at<cv::Vec2f>(0, 0) << std::endl;
 
 			//std::vector<cv::Mat> map;
 			//cv::split(optical_flow[0], map);
@@ -149,9 +152,9 @@ int main(void){
 
 			//std::cout << optical_flow[1].at<cv::Vec2f>(0, 0)[0] << std::endl;
 			//std::cout << optical_flow[1].at<cv::Vec2f>(0, 0)[1] << std::endl;
-			std::cout << optical_flow[0].at<cv::Vec2f>(1, 1) << std::endl;
+			//std::cout << optical_flow[0].at<cv::Vec2f>(1, 1) << std::endl;
 
-			processed_sequence = TLT::RetimeSequence(raw_sequence, optical_flow, remap_xy, 240);
+			processed_sequence = TLT::RetimeSequence(raw_sequence, optical_flow, remap_xy, 4);
 
 			preview_sequence.clear();
 
@@ -242,12 +245,18 @@ int main(void){
 
 		while (CURRENT_STATE == STATE::SAVE) {
 			if (!processed_sequence.empty()) {
-				cv::VideoWriter video_writer(EXPORT_PATH, CV_FOURCC('M', 'J', 'P', 'G'), 24, processed_sequence[0].size());
+
+
+
+				//cv::VideoWriter video_writer(EXPORT_PATH, CV_FOURCC('M', 'J', 'P', 'G'), 24, processed_sequence[0].size());
 				for (int f = 0; f < processed_sequence.size(); f++) {
-					video_writer.write(im2uint8(processed_sequence[f]));
+					cv::imwrite("output_" + std::to_string(f) + ".png", im2uint8(processed_sequence[f]));
+					//video_writer.write(im2uint8(processed_sequence[f]));
 				}
+
+
 				std::cout << "Saved" << std::endl;
-				video_writer.release();
+				//video_writer.release();
 				CURRENT_STATE = STATE::IDLE;
 			}	
 		}
