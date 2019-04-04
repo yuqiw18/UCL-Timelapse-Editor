@@ -6,12 +6,19 @@ Class Project Part B: Timelapse
 Coded By Yuqi Wang (18043263)
 */
 /*
-Runtime: WINDOWS 10 X64 + OpenCV 3.4 + CUDA 9.1 + VS2017(v15)
+*Runtime: WINDOWS 10 X64 + OpenCV 3.4 + CUDA 9.1 + VS2017(v15)
 OpenCV CUDA Binaries: https://yuqi.dev/tools/opencv340cuda91.zip
 
-External Framework/Library/Plugin:
-cvui(MIT License): https://github.com/Dovyski/cvui
+*External Framework/Library/Plugin:
+cvui(MIT License) https://github.com/Dovyski/cvui
 
+*Software/Applications Used for Data Collection:
+Timer Camera (Android) https://play.google.com/store/apps/details?id=com.cae.timercamera&hl=en_GB
+	For taking photos at given time interval
+Image Resizer https://www.bricelam.net/ImageResizer/
+	For bulk resizing(downsizing) images
+Bulk Rename Utility https://www.bulkrenameutility.co.uk/Main_Intro.php
+	For bulk renaming image names to a specific format.
 */
 
 #include <opencv2/opencv.hpp>
@@ -31,6 +38,14 @@ const enum STATE { IDLE, LOAD, PROCESS, PLAY, SAVE };
 // Prompt
 std::string LAST_SUCCESSFUL_OPERATION = "";
 std::string EXPORT_PATH ="";
+
+
+bool chk_gamma = false;
+bool chk_stablise = false;
+bool chk_hdr = false;
+bool chk_motion_trail = false;
+int val_interp_frame = 0;
+int val_export_fps = 30;
 
 int main(void){
 	
@@ -62,7 +77,7 @@ int main(void){
 	ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 
 	// Initialise GUI
-	cv::Mat gui = cv::Mat(650, 800, CV_8UC3);
+	cv::Mat gui = cv::Mat(650, 850, CV_8UC3);
 	gui = cv::Scalar(49, 52, 49);
 	cv::namedWindow(WINDOW_NAME);
 	cvui::init(WINDOW_NAME);
@@ -71,7 +86,6 @@ int main(void){
 	cv::VideoCapture footage;
 	std::vector<cv::Mat> raw_sequence;
 	std::vector<cv::Mat> processed_sequence;
-	std::vector<cv::Mat> preview_sequence;
 	std::vector<cv::Mat> optical_flow;
 	std::vector<cv::Mat> remap_xy;
 
@@ -80,14 +94,13 @@ int main(void){
 	int sequence_length = 1;
 
 	std::string PREVIEWER_BUTTON = "Play";
-	std::string EDITOR_MODE = "Create TL";
 
 	while (true) {
 		
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		// GUI: Read & Save Files
-		cvui::window(gui, 6, 6, 140, 100, "File");
-		if (cvui::button(gui, 12, 32, 128, 32,"Import(V/I)")) {
+		cvui::window(gui, 6, 6, 190, 162, "File");
+		if (cvui::button(gui, 12, 32, 178, 32,"Import (Video/Image)")) {
 			ofn.lpstrFilter = "All\0*.*\0Text\0*.TXT\0";
 			if (GetOpenFileName(&ofn) == TRUE) {
 
@@ -97,8 +110,7 @@ int main(void){
 				current_frame = 0;
 				sequence_length = 1;
 				raw_sequence.clear();
-				preview_sequence.clear();
-				preview_sequence.clear();
+				processed_sequence.clear();
 
 				// Determine file type
 				std::string file_path = utility::FilePathParser(ofn.lpstrFile);
@@ -113,27 +125,32 @@ int main(void){
 				}
 			}
 		}
-
-		if (cvui::button(gui, 12, 68, 128, 32, "Export(V)")) {
+		if (cvui::button(gui, 12, 68, 178, 32, "Export (Video)")) {
 			ofn.lpstrFilter = "All\0*.*\0Text\0*.TXT\0";
 			if (GetSaveFileName(&ofn) == TRUE) {
 				EXPORT_PATH = ofn.lpstrFile;
 				CURRENT_STATE = STATE::SAVE;
 			}
 		}
-
-		// GUI: Editor
-		cvui::window(gui, 6, 112, 140, 484, "Editor: "+EDITOR_MODE);
-		if (cvui::button(gui, 12, 138, 128, 32, "Change Mode")) {
-			if (EDITOR_MODE == "Create TL") {
-				EDITOR_MODE = "Modify TL";
-			}
-			else {
-				EDITOR_MODE = "Create TL";
-			}
+		cvui::text(gui, 12, 110, "Export FPS");
+		cvui::counter(gui, 98, 104, &val_export_fps);
+		if (cvui::button(gui, 12, 130, 178, 32, "Exit")) {
+			break;
 		}
 
-		if (cvui::button(gui, 12, 174, 128, 32, "Retime")) {
+		// GUI: Editor
+		cvui::window(gui, 6, 172, 190, 424, "Editor");
+		
+		
+		cvui::checkbox(gui, 12, 220, "Motion Trail", &chk_motion_trail);
+		cvui::checkbox(gui, 12, 250, "Stablisation", &chk_stablise);
+		cvui::checkbox(gui, 12, 280, "Gammar Correction", &chk_gamma);
+		cvui::checkbox(gui, 12, 310, "HDR", &chk_hdr);
+		cvui::text(gui, 12, 340, "Interpolation");
+		cvui::counter(gui, 98, 335, &val_interp_frame);
+		
+
+		if (cvui::button(gui, 12, 400, 178, 32, "Retime")) {
 			if (optical_flow.empty() || optical_flow.size() + 1 != raw_sequence.size()) {
 				optical_flow = core::ComputeOpticalFlow(raw_sequence);
 			}
@@ -152,33 +169,21 @@ int main(void){
 			//std::cout << optical_flow[0].at<cv::Vec2f>(1, 1) << std::endl;
 			
 			processed_sequence = core::RetimeSequence(raw_sequence, optical_flow, 8);
-
-			preview_sequence.clear();
-
-			for (int i = 0; i < processed_sequence.size(); i++) {
-				
-				cv::Mat current_frame = processed_sequence[i];
-				cv::resize(current_frame, current_frame, cv::Size(640, 480));
-				
-				preview_sequence.push_back(current_frame);
-				//preview_sequence.push_back(im2uint8(current_frame));
-			}
-
-			sequence_length = preview_sequence.size() - 1;
+			sequence_length = processed_sequence.size() - 1;
 
 		}
 
 		// GUI: Previwer
-		cvui::window(gui, 150, 6, 644, 504, "Preview");
+		cvui::window(gui, 200, 6, 644, 504, "Preview");
 		if (raw_sequence.empty()) {
-			cvui::text(gui, 400, 256, "No Video/Images Loaded");
+			cvui::text(gui, 450, 256, "No Video/Images Loaded");
 		}
 		
 		// GUI: Previewer Control
-		cvui::window(gui, 150, 514, 644, 82, "Control");
-		cvui::trackbar(gui, 158, 540, 512, &current_frame, (int)0, (int)sequence_length, 1, "%.0Lf", cvui::TRACKBAR_DISCRETE, (int)1);
-		cvui::counter(gui, 690, 539, &current_frame);
-		if (cvui::button(gui, 690, 564, 92, 28, PREVIEWER_BUTTON)) {
+		cvui::window(gui, 200, 514, 644, 82, "Control");
+		cvui::trackbar(gui, 208, 540, 512, &current_frame, (int)0, (int)sequence_length, 1, "%.0Lf", cvui::TRACKBAR_DISCRETE, (int)1);
+		cvui::counter(gui, 740, 539, &current_frame);
+		if (cvui::button(gui, 740, 564, 92, 28, PREVIEWER_BUTTON)) {
 			if (!raw_sequence.empty()) {
 
 				if (CURRENT_STATE == STATE::PLAY) {
@@ -222,53 +227,45 @@ int main(void){
 			// If reach the end of video
 			if (!is_reading_video) {
 				CURRENT_STATE = STATE::IDLE;
-				sequence_length = preview_sequence.size()-1;
 				processed_sequence = raw_sequence;		
+				sequence_length = processed_sequence.size() - 1;
 			}
 			else {
 				// Pass each frame to the image sequence vector
-
-				//std::cout << frame.type() << std::endl;
-
-				//std::cout << frame.at<cv::Vec3b>(0, 0) << std::endl;
-				//frame.convertTo(frame, CV_32FC3, 1.0 / 255);
-				//std::cout << frame.at<cv::Vec3f>(0, 0) << std::endl;
 				raw_sequence.push_back(frame);
 				//raw_sequence.push_back(im2single(frame));
-				cv::resize(frame, frame, cv::Size(640, 480));
-				preview_sequence.push_back(frame);
+				std::cout << raw_sequence.size() << std::endl;
 			}
 		}
 
 		while (CURRENT_STATE == STATE::SAVE) {
 			if (!processed_sequence.empty()) {
-
-
-
-				//cv::VideoWriter video_writer(EXPORT_PATH, CV_FOURCC('M', 'J', 'P', 'G'), 24, processed_sequence[0].size());
+				cv::VideoWriter video_writer(EXPORT_PATH + "_output.avi", CV_FOURCC('M', 'J', 'P', 'G'), val_export_fps, processed_sequence.front().size());
 				for (int f = 0; f < processed_sequence.size(); f++) {
-					cv::imwrite("output_" + std::to_string(f) + ".png", utility::im2uint8(processed_sequence[f]));
-					//video_writer.write(im2uint8(processed_sequence[f]));
+					//cv::imwrite("output_" + std::to_string(f) + ".png", utility::im2uint8(processed_sequence[f]));
+					video_writer.write(processed_sequence[f]);
 				}
 
 				std::cout << "Saved" << std::endl;
-				//video_writer.release();
+				video_writer.release();
 				CURRENT_STATE = STATE::IDLE;
 			}	
 		}
 
-
-
 		// Show the frame in the preview
 		if (!raw_sequence.empty()) {
-			if (current_frame < preview_sequence.size()) {
-				cvui::image(gui, 152, 28, preview_sequence[current_frame]);
+			if (current_frame < processed_sequence.size()) {
+				cv::Mat preview_frame = processed_sequence[current_frame];
+				cv::resize(preview_frame, preview_frame, cv::Size(640, 480));
+				cvui::image(gui, 202, 28, preview_frame);
 			}	
 
 			// Play the sequence
 			if (CURRENT_STATE == STATE::PLAY) {
-				cvui::image(gui, 152, 28, preview_sequence[current_frame]);
-				if (current_frame + 1 == preview_sequence.size()) {
+				cv::Mat preview_frame = processed_sequence[current_frame];
+				cv::resize(preview_frame, preview_frame, cv::Size(640, 480));
+				cvui::image(gui, 202, 28, preview_frame);
+				if (current_frame + 1 == processed_sequence.size()) {
 					CURRENT_STATE = STATE::IDLE;
 					PREVIEWER_BUTTON = "Play";
 				}
