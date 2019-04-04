@@ -18,7 +18,8 @@ std::vector<cv::Mat> TLT::ComputeOpticalFlow(std::vector<cv::Mat> raw_sequence) 
 
 	// Create Farneback optical flow operator
 	cv::Ptr<cv::FarnebackOpticalFlow> FarnebackOF = cv::FarnebackOpticalFlow::create(3, 0.5, false, 15, 3);
-	cv::Ptr< cv::cuda::FarnebackOpticalFlow> FarnebackOF_cuda = cv::cuda::FarnebackOpticalFlow::create(3, 0.5, false, 15, 3);
+	//cv::Ptr< cv::cuda::FarnebackOpticalFlow> FarnebackOF_cuda = cv::cuda::FarnebackOpticalFlow::create(3, 0.5, false, 15, 3);
+	cv::Ptr<cv::cuda::DensePyrLKOpticalFlow> FarnebackOF_cuda = cv::cuda::DensePyrLKOpticalFlow::create(cv::Size(41, 41), 5, 20, false);
 
 	for (int i = 0; i < raw_sequence.size() - 1; i++) {
 
@@ -35,9 +36,12 @@ std::vector<cv::Mat> TLT::ComputeOpticalFlow(std::vector<cv::Mat> raw_sequence) 
 		cv::cuda::cvtColor(frame_previous, frame_previous, CV_BGR2GRAY);
 		cv::cuda::cvtColor(frame_next, frame_next, CV_BGR2GRAY);
 
+		std::cout << "PASS1" << std::endl;
+
 		// Compute optical flows between two frames using GPU
 		FarnebackOF_cuda->calc(frame_previous, frame_next, frame_flow);
 
+		std::cout << "PASS2" << std::endl;
 		// Get results from GPU memory and save them
 		frame_flow.download(flow);
 		optical_flow.push_back(flow);
@@ -86,6 +90,7 @@ std::vector<cv::Mat> TLT::RetimeSequence(std::vector<cv::Mat> raw_sequence, std:
 
 		// The optical flow is backward thus needs to be negated
 		cv::Mat current_flow = optical_flow[i];
+		std::cout << current_flow.size() << std::endl;
 
 		// Add original frame to the output sequence
 		processed_sequence.push_back(raw_sequence[i]);
@@ -99,12 +104,13 @@ std::vector<cv::Mat> TLT::RetimeSequence(std::vector<cv::Mat> raw_sequence, std:
 			cv::Mat f0, f1, frame_interp, none;
 
 			// Convert optical flow structure for image warping
-			std::vector<cv::Mat> flow_xy1 = ConvertFlowXY2(current_flow * ( 1.0f - alpha), remap_xy);
+			std::vector<cv::Mat> flow_xy1 = ConvertFlowXY(-current_flow * alpha);
+
 			flow_x1.upload(flow_xy1[0]);
 			flow_y1.upload(flow_xy1[1]);
 			cv::cuda::remap(frame_prev, frame_prev_interp, flow_x1, flow_y1, cv::INTER_LINEAR);
 
-			std::vector<cv::Mat> flow_xy2 = ConvertFlowXY2(-current_flow * alpha, remap_xy);
+			std::vector<cv::Mat> flow_xy2 = ConvertFlowXY(current_flow * (1.0f - alpha));
 			flow_x2.upload(flow_xy2[0]);
 			flow_y2.upload(flow_xy2[1]);
 			cv::cuda::remap(frame_next, frame_next_interp, flow_x2, flow_y2, cv::INTER_LINEAR);
@@ -165,7 +171,6 @@ std::vector<cv::Mat> TLT::ConvertFlowXY(cv::Mat optical_flow) {
 	return flow_xy;
 }
 
-
 std::vector<cv::Mat> TLT::GetRemapMatrix(int h, int w) {
 
 	std::vector<cv::Mat> remap_xy;
@@ -196,6 +201,8 @@ std::vector<cv::Mat> TLT::GetRemapMatrix(int h, int w) {
 std::vector<cv::Mat> TLT::ConvertFlowXY2(cv::Mat optical_flow, std::vector<cv::Mat> remap_xy) {
 
 	bool cuda = false;
+
+	std::cout << "PASS1.1" << std::endl;
 
 	if (cuda) {
 		std::vector<cv::cuda::GpuMat> flow_xy;

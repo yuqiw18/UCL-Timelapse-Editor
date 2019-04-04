@@ -139,6 +139,8 @@ int main(void){
 			if (optical_flow.empty() || optical_flow.size() + 1 != raw_sequence.size()) {
 				optical_flow = TLT::ComputeOpticalFlow(raw_sequence);
 				remap_xy = TLT::GetRemapMatrix(raw_sequence[0].rows, raw_sequence[0].cols);
+				//remap_xy[0] = cv::Mat::zeros(raw_sequence[0].rows, raw_sequence[0].cols, CV_32FC1);
+				//remap_xy[1] = cv::Mat::zeros(raw_sequence[0].rows, raw_sequence[0].cols, CV_32FC1);
 			}
 
 			//std::cout << optical_flow[0].at<cv::Vec2f>(0,0)[0] << std::endl;
@@ -163,8 +165,8 @@ int main(void){
 				cv::Mat current_frame = processed_sequence[i];
 				cv::resize(current_frame, current_frame, cv::Size(640, 480));
 				
-				//preview_sequence.push_back(current_frame);
-				preview_sequence.push_back(im2uint8(current_frame));
+				preview_sequence.push_back(current_frame);
+				//preview_sequence.push_back(im2uint8(current_frame));
 			}
 
 			sequence_length = preview_sequence.size() - 1;
@@ -236,8 +238,8 @@ int main(void){
 				//std::cout << frame.at<cv::Vec3b>(0, 0) << std::endl;
 				//frame.convertTo(frame, CV_32FC3, 1.0 / 255);
 				//std::cout << frame.at<cv::Vec3f>(0, 0) << std::endl;
-				//raw_sequence.push_back(frame);
-				raw_sequence.push_back(im2single(frame));
+				raw_sequence.push_back(frame);
+				//raw_sequence.push_back(im2single(frame));
 				cv::resize(frame, frame, cv::Size(640, 480));
 				preview_sequence.push_back(frame);
 			}
@@ -253,7 +255,6 @@ int main(void){
 					cv::imwrite("output_" + std::to_string(f) + ".png", im2uint8(processed_sequence[f]));
 					//video_writer.write(im2uint8(processed_sequence[f]));
 				}
-
 
 				std::cout << "Saved" << std::endl;
 				//video_writer.release();

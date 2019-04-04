@@ -27,6 +27,9 @@
     <ClCompile Include="custom_func.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C2FOpticalFlow.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="utility.h">
@@ -36,6 +39,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="custom_func.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C2FOpticalFlow.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

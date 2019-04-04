@@ -158,12 +158,14 @@
     </ProjectReference>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="C2FOpticalFlow.cpp" />
     <ClCompile Include="custom_func.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="tlt.cpp" />
     <ClCompile Include="utility.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="C2FOpticalFlow.h" />
     <ClInclude Include="custom_func.h" />
     <ClInclude Include="tlt.h" />
     <ClInclude Include="utility.h" />
