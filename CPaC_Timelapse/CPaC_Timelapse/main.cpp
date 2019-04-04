@@ -8,22 +8,23 @@ Coded By Yuqi Wang (18043263)
 /*
 Runtime: WINDOWS 10 X64 + OpenCV 3.4 + CUDA 9.1 + VS2017(v15)
 OpenCV CUDA Binaries: https://yuqi.dev/tools/opencv340cuda91.zip
+
+External Framework/Library/Plugin:
+cvui(MIT License): https://github.com/Dovyski/cvui
+
 */
 
 #include <opencv2/opencv.hpp>
 #include <windows.h>
 #include <iostream>
-#include "tlt.h"
+#include "core.h"
 #include "utility.h"
-#include "custom_func.h"
 #define CVUI_IMPLEMENTATION
 #include "cvui/cvui.h"
 
 #define WINDOW_NAME "Time-Lapse Toolbox"
 #define PADDING_HORIZONTAL 6
 #define PADDING_VERTICAL 6
-
-using namespace CF;
 
 // State Machine (Non-OO)
 const enum STATE { IDLE, LOAD, PROCESS, PLAY, SAVE };
@@ -100,7 +101,7 @@ int main(void){
 				preview_sequence.clear();
 
 				// Determine file type
-				std::string file_path = UTIL::FilePathParser(ofn.lpstrFile);
+				std::string file_path = utility::FilePathParser(ofn.lpstrFile);
 				cv::VideoCapture input_video(file_path);
 				if (!input_video.isOpened()) {
 					std::cerr << "Invalid File" << std::endl;
@@ -124,23 +125,17 @@ int main(void){
 		// GUI: Editor
 		cvui::window(gui, 6, 112, 140, 484, "Editor: "+EDITOR_MODE);
 		if (cvui::button(gui, 12, 138, 128, 32, "Change Mode")) {
-
-			cv::Rect2d roi = cv::selectROI(processed_sequence[0]);
-
-			//if (EDITOR_MODE == "Create TL") {
-			//	EDITOR_MODE = "Modify TL";
-			//}
-			//else {
-			//	EDITOR_MODE = "Create TL";
-			//}
+			if (EDITOR_MODE == "Create TL") {
+				EDITOR_MODE = "Modify TL";
+			}
+			else {
+				EDITOR_MODE = "Create TL";
+			}
 		}
 
 		if (cvui::button(gui, 12, 174, 128, 32, "Retime")) {
 			if (optical_flow.empty() || optical_flow.size() + 1 != raw_sequence.size()) {
-				optical_flow = TLT::ComputeOpticalFlow(raw_sequence);
-				remap_xy = TLT::GetRemapMatrix(raw_sequence[0].rows, raw_sequence[0].cols);
-				//remap_xy[0] = cv::Mat::zeros(raw_sequence[0].rows, raw_sequence[0].cols, CV_32FC1);
-				//remap_xy[1] = cv::Mat::zeros(raw_sequence[0].rows, raw_sequence[0].cols, CV_32FC1);
+				optical_flow = core::ComputeOpticalFlow(raw_sequence);
 			}
 
 			//std::cout << optical_flow[0].at<cv::Vec2f>(0,0)[0] << std::endl;
@@ -155,8 +150,8 @@ int main(void){
 			//std::cout << optical_flow[1].at<cv::Vec2f>(0, 0)[0] << std::endl;
 			//std::cout << optical_flow[1].at<cv::Vec2f>(0, 0)[1] << std::endl;
 			//std::cout << optical_flow[0].at<cv::Vec2f>(1, 1) << std::endl;
-
-			processed_sequence = TLT::RetimeSequence(raw_sequence, optical_flow, remap_xy, 4);
+			
+			processed_sequence = core::RetimeSequence(raw_sequence, optical_flow, 8);
 
 			preview_sequence.clear();
 
@@ -252,7 +247,7 @@ int main(void){
 
 				//cv::VideoWriter video_writer(EXPORT_PATH, CV_FOURCC('M', 'J', 'P', 'G'), 24, processed_sequence[0].size());
 				for (int f = 0; f < processed_sequence.size(); f++) {
-					cv::imwrite("output_" + std::to_string(f) + ".png", im2uint8(processed_sequence[f]));
+					cv::imwrite("output_" + std::to_string(f) + ".png", utility::im2uint8(processed_sequence[f]));
 					//video_writer.write(im2uint8(processed_sequence[f]));
 				}
 

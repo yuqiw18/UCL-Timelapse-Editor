@@ -4,16 +4,16 @@
 #include <opencv2/cudaoptflow.hpp>
 #include <opencv2/cudaimgproc.hpp>
 #include <opencv2/video/tracking.hpp>
-#include "custom_func.h"
-#include "tlt.h"
+#include "core.h"
+#include "utility.h"
 
-std::vector<cv::Mat> TLT::ComputeOpticalFlow(std::vector<cv::Mat> raw_sequence) {
+std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> raw_sequence) {
+	
 	// Tic
 	std::cout << "@Computing Optical Flowv (Dense)" << std::endl;
 	clock_t start_time = std::clock();
 
 	bool cuda = true;
-
 	std::vector<cv::Mat> optical_flow;
 
 	// Create Farneback optical flow operator
@@ -24,7 +24,6 @@ std::vector<cv::Mat> TLT::ComputeOpticalFlow(std::vector<cv::Mat> raw_sequence) 
 	for (int i = 0; i < raw_sequence.size() - 1; i++) {
 
 		if (cuda){
-
 		cv::cuda::GpuMat frame_previous, frame_next, frame_flow;
 		cv::Mat flow;
 
@@ -36,12 +35,9 @@ std::vector<cv::Mat> TLT::ComputeOpticalFlow(std::vector<cv::Mat> raw_sequence) 
 		cv::cuda::cvtColor(frame_previous, frame_previous, CV_BGR2GRAY);
 		cv::cuda::cvtColor(frame_next, frame_next, CV_BGR2GRAY);
 
-		std::cout << "PASS1" << std::endl;
-
 		// Compute optical flows between two frames using GPU
 		FarnebackOF_cuda->calc(frame_previous, frame_next, frame_flow);
 
-		std::cout << "PASS2" << std::endl;
 		// Get results from GPU memory and save them
 		frame_flow.download(flow);
 		optical_flow.push_back(flow);
@@ -59,23 +55,24 @@ std::vector<cv::Mat> TLT::ComputeOpticalFlow(std::vector<cv::Mat> raw_sequence) 
 			// Save results
 			optical_flow.push_back(flow);
 		}
+		//std::cout << "... ";
 	}
-
+	//std::cout << "" << std::endl;
 	// Toc
 	double time_taken = (clock() - start_time) / (double)CLOCKS_PER_SEC;	
 	if (cuda) {
-		std::cout << "CUDA Optical Flow takes " + std::to_string(time_taken) + "s to complete " + std::to_string(raw_sequence.size()) + " frames" << std::endl;
+		std::cout << "CUDA Optical Flow takes " + std::to_string(time_taken) + "s to complete " + std::to_string(raw_sequence.size()-1) + " optical flows" << std::endl;
 	}else{
-		std::cout << "CPU Optical Flow takes " + std::to_string(time_taken) + "s to complete " + std::to_string(raw_sequence.size()) + " frames" << std::endl;
+		std::cout << "CPU Optical Flow takes " + std::to_string(time_taken) + "s to complete " + std::to_string(raw_sequence.size()-1) + " optical flows" << std::endl;
 	}
 	
 	return optical_flow;
 }
 
-std::vector<cv::Mat> TLT::RetimeSequence(std::vector<cv::Mat> raw_sequence, std::vector<cv::Mat> optical_flow, std::vector<cv::Mat> remap_xy, int frame_interval) {
+std::vector<cv::Mat> core::RetimeSequence(std::vector<cv::Mat> raw_sequence, std::vector<cv::Mat> optical_flow, int interpolation_frames) {
 	
 	// Tic
-	std::cout << "@Retime Timelapse" << std::endl;
+	std::cout << "@Retiming Timelapse" << std::endl;
 	clock_t start_time = std::clock();
 
 	std::vector<cv::Mat> processed_sequence;
@@ -88,16 +85,14 @@ std::vector<cv::Mat> TLT::RetimeSequence(std::vector<cv::Mat> raw_sequence, std:
 		frame_prev.upload(raw_sequence[i]);
 		frame_next.upload(raw_sequence[i + 1]);
 
-		// The optical flow is backward thus needs to be negated
 		cv::Mat current_flow = optical_flow[i];
-		std::cout << current_flow.size() << std::endl;
 
 		// Add original frame to the output sequence
 		processed_sequence.push_back(raw_sequence[i]);
 
-		for (int f = 1; f < frame_interval + 1; f++) {
+		for (int f = 1; f < interpolation_frames + 1; f++) {
 
-			float alpha = f / (float)(frame_interval + 1);
+			float alpha = f / (float)(interpolation_frames + 1);
 
 			cv::cuda::GpuMat frame_prev_interp, frame_next_interp;
 			cv::cuda::GpuMat flow_x1, flow_y1, flow_x2, flow_y2;
@@ -124,36 +119,18 @@ std::vector<cv::Mat> TLT::RetimeSequence(std::vector<cv::Mat> raw_sequence, std:
 
 			// Save the result
 			processed_sequence.push_back(frame_interp);
-
 		}
-
-		/*processed_sequence.push_back(raw_sequence[i]);
-
-		std::vector<cv::Mat> flow_xy = ConvertFlowXY(-optical_flow[i] * 0.5);
-		cv::cuda::GpuMat frame_prev, frame_next, frame_interp, flow_x, flow_y;
-		cv::Mat none, warp;
-
-		frame_prev.upload(raw_sequence[i]);
-		flow_x.upload(flow_xy[0]);
-		flow_y.upload(flow_xy[1]);
-
-		cv::cuda::remap(frame_prev, frame_interp, flow_x, flow_y, cv::INTER_LINEAR);
-		
-		frame_interp.download(warp);
-
-		processed_sequence.push_back(warp);*/
-
 	}
 
 	// Toc
 	double time_taken = (clock() - start_time) / (double)CLOCKS_PER_SEC;
-	std::cout << "Retiming Task takes " + std::to_string(time_taken) + "s to complete " + std::to_string((raw_sequence.size() - 1)* frame_interval) + " frames" << std::endl;
+	std::cout << "Retiming Task takes " + std::to_string(time_taken) + "s to complete " + std::to_string((raw_sequence.size() - 1)* interpolation_frames) + " frames" << std::endl;
 
 	return processed_sequence;
 
 }
 
-std::vector<cv::Mat> TLT::ConvertFlowXY(cv::Mat optical_flow) {
+std::vector<cv::Mat> core::ConvertFlowXY(cv::Mat optical_flow) {
 
 	cv::Mat flow(optical_flow.size(), CV_32FC2);
 	for (int y = 0; y < flow.rows; ++y)
@@ -171,7 +148,7 @@ std::vector<cv::Mat> TLT::ConvertFlowXY(cv::Mat optical_flow) {
 	return flow_xy;
 }
 
-std::vector<cv::Mat> TLT::GetRemapMatrix(int h, int w) {
+std::vector<cv::Mat> core::GetRemapMatrix(int h, int w) {
 
 	std::vector<cv::Mat> remap_xy;
 
@@ -198,11 +175,9 @@ std::vector<cv::Mat> TLT::GetRemapMatrix(int h, int w) {
 
 }
 
-std::vector<cv::Mat> TLT::ConvertFlowXY2(cv::Mat optical_flow, std::vector<cv::Mat> remap_xy) {
+std::vector<cv::Mat> core::ConvertFlowXY2(cv::Mat optical_flow, std::vector<cv::Mat> remap_xy) {
 
 	bool cuda = false;
-
-	std::cout << "PASS1.1" << std::endl;
 
 	if (cuda) {
 		std::vector<cv::cuda::GpuMat> flow_xy;

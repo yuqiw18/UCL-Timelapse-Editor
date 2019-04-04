@@ -2,9 +2,10 @@
 #include <algorithm>
 #include <string>
 #include <vector>
+#include <opencv2/core.hpp>
 #include "utility.h"
 
-std::string UTIL::FilePathParser(std::string file_path) {
+std::string utility::FilePathParser(std::string file_path) {
 
 	// Convert file path to lower case
 	std::transform(file_path.begin(), file_path.end(), file_path.begin(), ::tolower); 
@@ -43,4 +44,19 @@ std::string UTIL::FilePathParser(std::string file_path) {
 		return file_path;
 	}
 
+}
+
+cv::Mat utility::im2uint8(cv::Mat mat) {
+	mat.convertTo(mat, CV_8UC3, 255);
+	return mat;
+}
+
+cv::Mat utility::im2single(cv::Mat mat) {
+	mat.convertTo(mat, CV_32FC3, 1.0 / 255);
+	return mat;
+}
+
+cv::Mat utility::im2double(cv::Mat mat) {
+	mat.convertTo(mat, CV_64FC3, 1.0 / 255);
+	return mat;
 }
