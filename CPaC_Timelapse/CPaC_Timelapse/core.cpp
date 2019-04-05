@@ -10,16 +10,16 @@
 std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> raw_sequence) {
 	
 	// Tic
-	std::cout << "@Computing Optical Flowv (Dense)" << std::endl;
+	std::cout << "@Computing Optical Flow (Dense)" << std::endl;
 	clock_t start_time = std::clock();
 
 	bool cuda = true;
 	std::vector<cv::Mat> optical_flow;
 
 	// Create Farneback optical flow operator
-	cv::Ptr<cv::FarnebackOpticalFlow> FarnebackOF = cv::FarnebackOpticalFlow::create(3, 0.5, false, 15, 3);
-	//cv::Ptr< cv::cuda::FarnebackOpticalFlow> FarnebackOF_cuda = cv::cuda::FarnebackOpticalFlow::create(3, 0.5, false, 15, 3);
-	cv::Ptr<cv::cuda::DensePyrLKOpticalFlow> FarnebackOF_cuda = cv::cuda::DensePyrLKOpticalFlow::create(cv::Size(41, 41), 5, 20, false);
+	cv::Ptr<cv::FarnebackOpticalFlow> optical_flow_cv = cv::FarnebackOpticalFlow::create(3, 0.5, false, 17, 3);
+	cv::Ptr< cv::cuda::FarnebackOpticalFlow> optical_flow_cuda = cv::cuda::FarnebackOpticalFlow::create(5,0.5,false,15,20);
+	//cv::Ptr<cv::cuda::DensePyrLKOpticalFlow> optical_flow_cuda = cv::cuda::DensePyrLKOpticalFlow::create(cv::Size(21, 21), 5, 20, true);
 
 	for (int i = 0; i < raw_sequence.size() - 1; i++) {
 
@@ -36,7 +36,7 @@ std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> raw_sequence)
 		cv::cuda::cvtColor(frame_next, frame_next, CV_BGR2GRAY);
 
 		// Compute optical flows between two frames using GPU
-		FarnebackOF_cuda->calc(frame_previous, frame_next, frame_flow);
+		optical_flow_cuda->calc(frame_previous, frame_next, frame_flow);
 
 		// Get results from GPU memory and save them
 		frame_flow.download(flow);
@@ -50,7 +50,7 @@ std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> raw_sequence)
 			cv::cvtColor(raw_sequence[i+1], f1, CV_BGR2GRAY);
 
 			// Compute optical flows between two frames using CPU
-			FarnebackOF->calc(f0, f1, flow);
+			optical_flow_cv->calc(f0, f1, flow);
 
 			// Save results
 			optical_flow.push_back(flow);
@@ -103,12 +103,12 @@ std::vector<cv::Mat> core::RetimeSequence(std::vector<cv::Mat> raw_sequence, std
 
 			flow_x1.upload(flow_xy1[0]);
 			flow_y1.upload(flow_xy1[1]);
-			cv::cuda::remap(frame_prev, frame_prev_interp, flow_x1, flow_y1, cv::INTER_LINEAR);
+			cv::cuda::remap(frame_prev, frame_prev_interp, flow_x1, flow_y1, cv::INTER_LINEAR, cv::BORDER_REPLICATE);
 
 			std::vector<cv::Mat> flow_xy2 = ConvertFlowXY(current_flow * (1.0f - alpha));
 			flow_x2.upload(flow_xy2[0]);
 			flow_y2.upload(flow_xy2[1]);
-			cv::cuda::remap(frame_next, frame_next_interp, flow_x2, flow_y2, cv::INTER_LINEAR);
+			cv::cuda::remap(frame_next, frame_next_interp, flow_x2, flow_y2, cv::INTER_LINEAR, cv::BORDER_REPLICATE);
 
 			// Get results from the GPU
 			frame_prev_interp.download(f0);
@@ -133,9 +133,9 @@ std::vector<cv::Mat> core::RetimeSequence(std::vector<cv::Mat> raw_sequence, std
 std::vector<cv::Mat> core::ConvertFlowXY(cv::Mat optical_flow) {
 
 	cv::Mat flow(optical_flow.size(), CV_32FC2);
-	for (int y = 0; y < flow.rows; ++y)
+	for (int y = 0; y < flow.rows; y++)
 	{
-		for (int x = 0; x < flow.cols; ++x)
+		for (int x = 0; x < flow.cols; x++)
 		{
 			cv::Point2f f = optical_flow.at<cv::Point2f>(y, x);
 			flow.at<cv::Point2f>(y, x) = cv::Point2f(x + f.x, y + f.y);

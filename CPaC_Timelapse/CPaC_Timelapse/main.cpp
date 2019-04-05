@@ -44,8 +44,8 @@ bool chk_gamma = false;
 bool chk_stablise = false;
 bool chk_hdr = false;
 bool chk_motion_trail = false;
-int val_interp_frame = 0;
-int val_export_fps = 30;
+int val_interp_frame = 4;
+int val_export_fps = 60;
 
 int main(void){
 	
@@ -140,15 +140,13 @@ int main(void){
 
 		// GUI: Editor
 		cvui::window(gui, 6, 172, 190, 424, "Editor");
-		
-		
+			
 		cvui::checkbox(gui, 12, 220, "Motion Trail", &chk_motion_trail);
 		cvui::checkbox(gui, 12, 250, "Stablisation", &chk_stablise);
 		cvui::checkbox(gui, 12, 280, "Gammar Correction", &chk_gamma);
-		cvui::checkbox(gui, 12, 310, "HDR", &chk_hdr);
+		cvui::checkbox(gui, 12, 310, "HDR (Pseudo)", &chk_hdr);
 		cvui::text(gui, 12, 340, "Interpolation");
 		cvui::counter(gui, 98, 335, &val_interp_frame);
-		
 
 		if (cvui::button(gui, 12, 400, 178, 32, "Retime")) {
 			if (optical_flow.empty() || optical_flow.size() + 1 != raw_sequence.size()) {
@@ -168,9 +166,8 @@ int main(void){
 			//std::cout << optical_flow[1].at<cv::Vec2f>(0, 0)[1] << std::endl;
 			//std::cout << optical_flow[0].at<cv::Vec2f>(1, 1) << std::endl;
 			
-			processed_sequence = core::RetimeSequence(raw_sequence, optical_flow, 8);
+			processed_sequence = core::RetimeSequence(raw_sequence, optical_flow, val_interp_frame);
 			sequence_length = processed_sequence.size() - 1;
-
 		}
 
 		// GUI: Previwer
@@ -242,7 +239,6 @@ int main(void){
 			if (!processed_sequence.empty()) {
 				cv::VideoWriter video_writer(EXPORT_PATH + "_output.avi", CV_FOURCC('M', 'J', 'P', 'G'), val_export_fps, processed_sequence.front().size());
 				for (int f = 0; f < processed_sequence.size(); f++) {
-					//cv::imwrite("output_" + std::to_string(f) + ".png", utility::im2uint8(processed_sequence[f]));
 					video_writer.write(processed_sequence[f]);
 				}
 
