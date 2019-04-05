@@ -4,6 +4,7 @@
 #include <opencv2/cudaoptflow.hpp>
 #include <opencv2/cudaimgproc.hpp>
 #include <opencv2/video/tracking.hpp>
+#include <math.h>
 #include "core.h"
 #include "utility.h"
 
@@ -19,6 +20,8 @@ std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> raw_sequence)
 	// Create Farneback optical flow operator
 	cv::Ptr<cv::FarnebackOpticalFlow> optical_flow_cv = cv::FarnebackOpticalFlow::create(3, 0.5, false, 17, 3);
 	cv::Ptr< cv::cuda::FarnebackOpticalFlow> optical_flow_cuda = cv::cuda::FarnebackOpticalFlow::create(5,0.5,false,15,20);
+
+	// Initially used for multi-view project
 	//cv::Ptr<cv::cuda::DensePyrLKOpticalFlow> optical_flow_cuda = cv::cuda::DensePyrLKOpticalFlow::create(cv::Size(21, 21), 5, 20, true);
 
 	for (int i = 0; i < raw_sequence.size() - 1; i++) {
@@ -148,6 +151,127 @@ std::vector<cv::Mat> core::ConvertFlowXY(cv::Mat optical_flow) {
 	return flow_xy;
 }
 
+
+cv::Mat core::GenerateGammaLookupTable(double gamma) {
+	// Gamma correction for sRGB
+	cv::Mat gamma_lookup_table = cv::Mat::zeros(1, 256, CV_8UC1);
+	for (int i = 0; i < 256; i++) {
+		gamma_lookup_table.at<uint8_t>(0, i) = pow(i / 255.0, gamma) * 255.0;
+
+		std::cout << std::to_string(gamma_lookup_table.at<uint8_t>(0, i)) << std::endl;
+	}
+	return gamma_lookup_table;
+}
+
+std::vector<cv::Mat> core::GammaCorrection(std::vector<cv::Mat> raw_sequence, cv::Mat &gamma_lookup_table) {
+
+	for (int i = 0; i < raw_sequence.size(); i++) {
+		cv::Mat frame_corrected;
+		cv::LUT(raw_sequence[i], gamma_lookup_table, frame_corrected);
+		raw_sequence[i] = frame_corrected;
+	}
+
+	return raw_sequence;
+}
+
+//std::vector<cv::Mat> core::MaskOpticalFlow(std::vector<cv::Mat> optical_flow) {
+//
+//	for (int i = 0; i < optical_flow.size(); i++) {
+//
+//		/*cv::Mat flow[2], flow_magnitude, flow_angle;
+//		cv::split(optical_flow[i], flow);
+//		cv::cartToPolar(flow[0], flow[1], flow_magnitude, flow_angle, true);*/
+//
+//	}
+//}
+
+
+std::vector<cv::Mat> core::GenerateMotionTrail(std::vector<cv::Mat>input_sequence) {
+
+	// Tic
+	std::cout << "@Generating Motion Trail" << std::endl;
+	clock_t start_time = std::clock();
+
+
+	std::vector<cv::Mat> motion_sequence;
+
+	for (int i = 0; i < input_sequence.size()-1; i++) {
+		cv::Mat frame_prev, frame_next;
+		cv::cvtColor(input_sequence[i], frame_prev, CV_BGR2GRAY);
+		cv::cvtColor(input_sequence[i+1], frame_next, CV_BGR2GRAY);
+
+		cv::Mat motion = -(frame_prev- frame_next);
+
+		cv::cvtColor(motion, motion, CV_GRAY2BGR);
+		motion_sequence.push_back(motion);
+	}
+
+	cv::Mat motion_frame_last = cv::Mat::zeros(motion_sequence.front().size(), motion_sequence.front().type());
+	motion_sequence.push_back(motion_frame_last);
+
+	std::vector<cv::Mat> motion_sequence_merge;
+
+	for (int i = 0; i < motion_sequence.size(); i++) {
+	
+		int motion_interval = 30;
+		cv::Mat motion_trail = cv::Mat::zeros(motion_sequence.front().size(), CV_8UC3);
+		cv::cuda::GpuMat motion_trail_cuda;
+
+		if (i < motion_interval) {
+			for (int f = 0; f < i; f++) {
+
+				motion_trail += ((float)i - (float)f) / (float)i * motion_sequence[i - f];
+			}
+		}
+		else {
+			for (int f = 0; f < motion_interval; f++) {
+				motion_trail += ((float)motion_interval - (float)f) / (float)motion_interval * motion_sequence[i - f];
+			}
+		}
+
+		cv::Mat motion_trail_adjusted;
+		cv::normalize(motion_trail, motion_trail_adjusted, 0, 255, cv::NORM_MINMAX);
+		cv::applyColorMap(motion_trail_adjusted, motion_trail_adjusted, cv::COLORMAP_OCEAN);
+		motion_sequence_merge.push_back(motion_trail_adjusted);
+	}
+
+	// Toc
+	double time_taken = (clock() - start_time) / (double)CLOCKS_PER_SEC;
+	std::cout << "Elapsed time is " + std::to_string(time_taken) + "s " << std::endl;
+
+	return motion_sequence_merge;
+}
+
+
+std::vector<cv::Mat> core::ApplyMotionTrail(std::vector<cv::Mat>input_sequence, std::vector<cv::Mat>motion_trail) {
+	
+	// Tic
+	std::cout << "@Applying Motion Trail" << std::endl;
+	clock_t start_time = std::clock();
+
+	std::vector<cv::Mat> blended_sequence;
+
+	double alpha = 0.2;
+	double beta = (1.0 - alpha);
+
+	for (int i = 0; i < input_sequence.size(); i++) {
+
+
+		cv::Mat frame_current;
+		cv::cvtColor(input_sequence[i], frame_current, CV_BGR2GRAY);
+		cv::cvtColor(frame_current, frame_current, CV_GRAY2BGR);
+		cv::Mat frame_blended;
+		cv::addWeighted(motion_trail[i], alpha, frame_current, beta, 0.0, frame_blended);
+		blended_sequence.push_back(frame_blended);
+	}
+
+	// Toc
+	double time_taken = (clock() - start_time) / (double)CLOCKS_PER_SEC;
+	std::cout << "Elapsed time is " + std::to_string(time_taken) + "s " << std::endl;
+
+	return blended_sequence;
+}
+
 std::vector<cv::Mat> core::GetRemapMatrix(int h, int w) {
 
 	std::vector<cv::Mat> remap_xy;
@@ -185,10 +309,10 @@ std::vector<cv::Mat> core::ConvertFlowXY2(cv::Mat optical_flow, std::vector<cv::
 		cv::Mat flow_x, flow_y;
 
 		cv::cuda::split(optical_flow, flow_xy);
-	
+
 		remap_y.upload(remap_xy[0]);
 		remap_x.upload(remap_xy[1]);
-	
+
 		cv::cuda::add(flow_xy[0], remap_xy[0], result_y);
 		cv::cuda::add(flow_xy[1], remap_xy[1], result_x);
 

@@ -5,6 +5,7 @@ COMP0028: Computational Photography and Capture
 Class Project Part B: Timelapse
 Coded By Yuqi Wang (18043263)
 */
+
 /*
 *Runtime: WINDOWS 10 X64 + OpenCV 3.4 + CUDA 9.1 + VS2017(v15)
 OpenCV CUDA Binaries: https://yuqi.dev/tools/opencv340cuda91.zip
@@ -29,16 +30,14 @@ Bulk Rename Utility https://www.bulkrenameutility.co.uk/Main_Intro.php
 #define CVUI_IMPLEMENTATION
 #include "cvui/cvui.h"
 
-#define WINDOW_NAME "Time-Lapse Toolbox"
+#define WINDOW_NAME "Time-Lapse/Slo-Mo Toolbox"
 #define PADDING_HORIZONTAL 6
 #define PADDING_VERTICAL 6
 
 // State Machine (Non-OO)
 const enum STATE { IDLE, LOAD, PROCESS, PLAY, SAVE };
 // Prompt
-std::string LAST_SUCCESSFUL_OPERATION = "";
 std::string EXPORT_PATH ="";
-
 
 bool chk_gamma = false;
 bool chk_stablise = false;
@@ -77,7 +76,7 @@ int main(void){
 	ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 
 	// Initialise GUI
-	cv::Mat gui = cv::Mat(650, 850, CV_8UC3);
+	cv::Mat gui = cv::Mat(600, 850, CV_8UC3);
 	gui = cv::Scalar(49, 52, 49);
 	cv::namedWindow(WINDOW_NAME);
 	cvui::init(WINDOW_NAME);
@@ -87,13 +86,14 @@ int main(void){
 	std::vector<cv::Mat> raw_sequence;
 	std::vector<cv::Mat> processed_sequence;
 	std::vector<cv::Mat> optical_flow;
-	std::vector<cv::Mat> remap_xy;
+	cv::Mat gamma_lookup_table = core::GenerateGammaLookupTable(2.2);
 
-	int current_clip = 0;
 	int current_frame = 0;
 	int sequence_length = 1;
 
 	std::string PREVIEWER_BUTTON = "Play";
+
+	//core *toolbox = new core();
 
 	while (true) {
 		
@@ -121,7 +121,6 @@ int main(void){
 				else {
 					footage = input_video;
 					CURRENT_STATE = STATE::LOAD;
-					//READY_TO_LOAD = true;
 				}
 			}
 		}
@@ -134,40 +133,49 @@ int main(void){
 		}
 		cvui::text(gui, 12, 110, "Export FPS");
 		cvui::counter(gui, 98, 104, &val_export_fps);
-		if (cvui::button(gui, 12, 130, 178, 32, "Exit")) {
-			break;
+		if (cvui::button(gui, 12, 130, 178, 32, "Reset")) {
+			CURRENT_STATE = STATE::IDLE;
+			current_frame = 0;
+			sequence_length = 1;
+			raw_sequence.clear();
+			processed_sequence.clear();
 		}
 
 		// GUI: Editor
 		cvui::window(gui, 6, 172, 190, 424, "Editor");
 			
 		cvui::checkbox(gui, 12, 220, "Motion Trail", &chk_motion_trail);
-		cvui::checkbox(gui, 12, 250, "Stablisation", &chk_stablise);
-		cvui::checkbox(gui, 12, 280, "Gammar Correction", &chk_gamma);
-		cvui::checkbox(gui, 12, 310, "HDR (Pseudo)", &chk_hdr);
+		//cvui::checkbox(gui, 12, 250, "Stablisation", &chk_stablise);
+		//cvui::checkbox(gui, 12, 280, "Gammar Correction", &chk_gamma);
+		//cvui::checkbox(gui, 12, 310, "HDR (Pseudo)", &chk_hdr);
 		cvui::text(gui, 12, 340, "Interpolation");
 		cvui::counter(gui, 98, 335, &val_interp_frame);
 
-		if (cvui::button(gui, 12, 400, 178, 32, "Retime")) {
-			if (optical_flow.empty() || optical_flow.size() + 1 != raw_sequence.size()) {
-				optical_flow = core::ComputeOpticalFlow(raw_sequence);
+		if (cvui::button(gui, 12, 400, 178, 32, "Run")) {
+			if (!processed_sequence.empty()) {
+				//if (optical_flow.empty() || optical_flow.size() + 1 != raw_sequence.size()) {
+			//		optical_flow = core::ComputeOpticalFlow(raw_sequence);	
+			//}
+
+			//if (val_interp_frame > 0) {
+			//	processed_sequence = core::RetimeSequence(processed_sequence, optical_flow, val_interp_frame);
+			//}
+
+			//if (chk_gamma) {
+			//	processed_sequence = core::GammaCorrection(processed_sequence, gamma_lookup_table);
+			//}
+
+				std::vector<cv::Mat> motion_trail = core::GenerateMotionTrail(processed_sequence);
+
+				processed_sequence = core::ApplyMotionTrail(processed_sequence, motion_trail);
+
+				sequence_length = processed_sequence.size() - 1;
+
 			}
+		}
 
-			//std::cout << optical_flow[0].at<cv::Vec2f>(0,0)[0] << std::endl;
-			//std::cout << optical_flow[0].at<cv::Vec2f>(0,0)[1] << std::endl;
-			//std::cout << optical_flow[0].at<cv::Vec2f>(0, 0) << std::endl;
-
-			//std::vector<cv::Mat> map;
-			//cv::split(optical_flow[0], map);
-			//std::cout << map[0].at<float>(0,0) << std::endl;
-			//std::cout << map[1].at<float>(0,0) << std::endl;
-
-			//std::cout << optical_flow[1].at<cv::Vec2f>(0, 0)[0] << std::endl;
-			//std::cout << optical_flow[1].at<cv::Vec2f>(0, 0)[1] << std::endl;
-			//std::cout << optical_flow[0].at<cv::Vec2f>(1, 1) << std::endl;
-			
-			processed_sequence = core::RetimeSequence(raw_sequence, optical_flow, val_interp_frame);
-			sequence_length = processed_sequence.size() - 1;
+		if (cvui::button(gui, 12, 558, 178, 32, "Exit")) {
+			break;
 		}
 
 		// GUI: Previwer
@@ -198,8 +206,6 @@ int main(void){
 			}
 		}
 
-		cvui::window(gui, 6, 600, 788, 44, "Output");
-		cvui::text(gui, 12, 626, ">" + LAST_SUCCESSFUL_OPERATION);
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -230,7 +236,6 @@ int main(void){
 			else {
 				// Pass each frame to the image sequence vector
 				raw_sequence.push_back(frame);
-				//raw_sequence.push_back(im2single(frame));
 				std::cout << raw_sequence.size() << std::endl;
 			}
 		}
@@ -268,11 +273,9 @@ int main(void){
 				else {
 					current_frame++;
 				}
-
 			}
 			else {
 			}
-
 		}
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
