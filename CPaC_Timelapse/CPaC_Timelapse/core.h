@@ -2,9 +2,8 @@
 
 namespace core {
 	std::vector<cv::Mat> GammaCorrection(std::vector<cv::Mat> raw_sequence, cv::Mat &gamma_lookup_table);
-	std::vector<cv::Mat> NonUniformSampling(std::vector<cv::Mat> raw_sequence);
 
-	std::vector<cv::Mat> ComputeOpticalFlow(std::vector<cv::Mat> raw_sequence);
+	std::vector<cv::Mat> ComputeOpticalFlow(std::vector<cv::Mat> &raw_sequence, bool &use_cuda);
 	std::vector<cv::Mat> ConvertFlowXY(cv::Mat optical_flow);
 
 	std::vector<cv::Mat> MaskOpticalFlow(std::vector<cv::Mat> optical_flow);
@@ -15,7 +14,7 @@ namespace core {
 
 	std::vector<cv::Mat> EnhanceImage(std::vector<cv::Mat> input_sequence);
 
-	std::vector<cv::Mat> RetroFilter(std::vector<cv::Mat> input_sequence);
+	std::vector<cv::Mat> VintageFilter(std::vector<cv::Mat> input_sequence, std::vector<cv::Mat> mask_sequence);
 
 	std::vector<cv::Mat> GetRemapMatrix(int w, int h);
 	std::vector<cv::Mat> ConvertFlowXY2(cv::Mat optical_flow, std::vector<cv::Mat> remap_xy);

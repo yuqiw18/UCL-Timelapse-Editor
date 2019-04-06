@@ -25,12 +25,15 @@ Bulk Rename Utility https://www.bulkrenameutility.co.uk/Main_Intro.php
 #include <opencv2/opencv.hpp>
 #include <windows.h>
 #include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 #include "core.h"
 #include "utility.h"
 #define CVUI_IMPLEMENTATION
 #include "cvui/cvui.h"
 
-#define WINDOW_NAME "Time-Lapse/Slo-Mo Toolbox"
+#define WINDOW_NAME "Time-Lapse/Slow-Mo Toolbox"
 #define PADDING_HORIZONTAL 6
 #define PADDING_VERTICAL 6
 
@@ -38,21 +41,30 @@ Bulk Rename Utility https://www.bulkrenameutility.co.uk/Main_Intro.php
 const enum STATE { IDLE, LOAD, PROCESS, PLAY, SAVE };
 // Prompt
 std::string EXPORT_PATH ="";
+std::string IMPORT_PATH = "";
 
-bool chk_gamma = false;
-bool chk_stablise = false;
-bool chk_hdr = false;
+bool chk_enhance = false;
+bool chk_vintage = false;
+bool chk_miniature = false;
 bool chk_motion_trail = false;
+bool chk_lomo = false;
 int val_interp_frame = 0;
 int val_import_fps = 1;
 int val_export_fps = 60;
 
+bool INIT_VINTAGE_MASK = false;
+bool HAS_CUDA = false;
+bool USE_CUDA = false;
+
 int main(void){
 	
 	STATE CURRENT_STATE = STATE::IDLE;
+	
+srand(time(NULL));
 
-	if (cv::cuda::getCudaEnabledDeviceCount() == 0) {
-		std::cout << "No Cuda" << std::endl;	
+	if (cv::cuda::getCudaEnabledDeviceCount() != 0) {
+		HAS_CUDA = true;
+		USE_CUDA = true;
 	}
 
 	// File browser
@@ -84,10 +96,11 @@ int main(void){
 	cvui::init(WINDOW_NAME);
 
 	// Initialise variables
-	cv::VideoCapture footage;
+	cv::VideoCapture video_cache;
 	std::vector<cv::Mat> raw_sequence;
 	std::vector<cv::Mat> processed_sequence;
 	std::vector<cv::Mat> optical_flow;
+	std::vector<cv::Mat> mask_vintage;
 	cv::Mat gamma_lookup_table = core::GenerateGammaLookupTable(2.2);
 
 	int current_frame = 0;
@@ -97,97 +110,150 @@ int main(void){
 
 	//core *toolbox = new core();
 
+	cv::VideoCapture input_mask("data/mask_v/mask_v-01.png");
+	if (!input_mask.isOpened()) {
+		HAS_CUDA = false;
+	}
+	else {
+		video_cache = input_mask;
+	}
+
+	while (!INIT_VINTAGE_MASK) {
+		cv::Mat frame;
+		bool is_reading_video = video_cache.read(frame);
+		// If reach the end of video
+		if (!is_reading_video) {
+			INIT_VINTAGE_MASK = true;
+			video_cache.release();
+		}
+		else {
+			// Pass each frame to the image sequence vector
+			mask_vintage.push_back(frame);
+		}
+	}
+
+
 	while (true) {
 		
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		// GUI: Read & Save Files
-		cvui::window(gui, 6, 6, 190, 162, "File");
-
-
+		cvui::window(gui, 6, 6, 190, 196, "File");
 		if (cvui::button(gui, 12, 32, 178, 32,"Import (Video/Image)")) {
 			ofn.lpstrFilter = "All\0*.*\0Text\0*.TXT\0";
 			if (GetOpenFileName(&ofn) == TRUE) {
 
 				// Reset variables
-				//READY_TO_LOAD = false;
 				CURRENT_STATE = STATE::IDLE;
 				current_frame = 0;
 				sequence_length = 1;
 				raw_sequence.clear();
 				processed_sequence.clear();
+				optical_flow.clear();
 
 				// Determine file type
-				std::string file_path = utility::FilePathParser(ofn.lpstrFile);
-				cv::VideoCapture input_video(file_path);
+				IMPORT_PATH = utility::FilePathParser(ofn.lpstrFile);
+				cv::VideoCapture input_video(IMPORT_PATH);
 				if (!input_video.isOpened()) {
 					std::cerr << "Invalid File" << std::endl;
 				}
 				else {
-					footage = input_video;
+					video_cache = input_video;
 					CURRENT_STATE = STATE::LOAD;
 				}
 			}
 		}
-		if (cvui::button(gui, 12, 68, 178, 32, "Export (Video)")) {
+		cvui::text(gui, 12, 82, "FPS(I)");
+		cvui::trackbar(gui, 50, 65, 148, &val_import_fps, (int)1, (int)60, 1, "%.0Lf", cvui::TRACKBAR_DISCRETE, (int)1);
+
+		if (cvui::button(gui, 12, 116, 178, 32, "Export (Video)")) {
 			ofn.lpstrFilter = "All\0*.*\0Text\0*.TXT\0";
 			if (GetSaveFileName(&ofn) == TRUE) {
 				EXPORT_PATH = ofn.lpstrFile;
 				CURRENT_STATE = STATE::SAVE;
 			}
 		}
-		cvui::text(gui, 12, 110, "Export FPS");
-		cvui::counter(gui, 98, 104, &val_export_fps);
-		if (cvui::button(gui, 12, 130, 178, 32, "Reset")) {
-			CURRENT_STATE = STATE::IDLE;
-			current_frame = 0;
-			sequence_length = 1;
-			raw_sequence.clear();
-			processed_sequence.clear();
-		}
+		cvui::text(gui, 12, 166, "FPS(O)");
+		cvui::trackbar(gui, 50, 149, 148, &val_export_fps, (int)1, (int)60, 1, "%.0Lf", cvui::TRACKBAR_DISCRETE, (int)1);
+		
 
 		// GUI: Editor
-		cvui::window(gui, 6, 172, 190, 424, "Editor");
-			
-		cvui::checkbox(gui, 12, 220, "Motion Trail", &chk_motion_trail);
-		//cvui::checkbox(gui, 12, 250, "Stablisation", &chk_stablise);
-		cvui::checkbox(gui, 12, 280, "Image Enhancement", &chk_gamma);
-		//cvui::checkbox(gui, 12, 310, "HDR (Pseudo)", &chk_hdr);
-		cvui::text(gui, 12, 340, "Interpolation");
-		cvui::counter(gui, 98, 335, &val_interp_frame);
+		cvui::window(gui, 6, 206, 190, 98, "Retiming (Interpolation)");
+		cvui::text(gui, 12, 247, "Frame");
+		cvui::trackbar(gui, 50, 230, 148, &val_interp_frame, (int)0, (int)60, 1, "%.0Lf", cvui::TRACKBAR_DISCRETE, (int)1);
+		cvui::checkbox(gui, 12, 282, "Image Enhancement", &chk_enhance);
 
-		if (cvui::button(gui, 12, 400, 178, 32, "Run")) {
+		cvui::window(gui, 6, 308, 190, 136, "Filter");
+		cvui::checkbox(gui, 12, 336, "Vintage (Scenery)", &chk_vintage);
+		cvui::checkbox(gui, 12, 364, "Miniature (City)", &chk_miniature);
+		cvui::checkbox(gui, 12, 392, "Motion Trail (People)", &chk_motion_trail);
+		cvui::checkbox(gui, 12, 420, "Lomo (General)", &chk_lomo);
+
+		cvui::window(gui, 6, 448, 190, 100, "Operation");
+		if (cvui::button(gui, 12, 474, 178, 32, "Proccess")) {
 			if (!processed_sequence.empty()) {
 				if (val_interp_frame > 0) {
 					if (optical_flow.empty() || optical_flow.size() + 1 != raw_sequence.size()) {
-						optical_flow = core::ComputeOpticalFlow(raw_sequence);
+						optical_flow = core::ComputeOpticalFlow(raw_sequence, USE_CUDA);
 					}
 					else {
+						std::cout << "Opitcal Flow Already Computed" << std::endl;
 					}
 				
-			}
+				}
 
-			//if (chk_gamma) {
-			//	//processed_sequence = core::GammaCorrection(processed_sequence, gamma_lookup_table);
-				//processed_sequence = core::EnhanceImage(processed_sequence);
+				if (val_interp_frame > 0) {
+					processed_sequence = core::RetimeSequence(processed_sequence, optical_flow, val_interp_frame);
+				}
 
-				processed_sequence = core::RetroFilter(processed_sequence);
-			//}
+				if (chk_enhance) {
+					processed_sequence = core::EnhanceImage(processed_sequence);
+				}
 
-			//if (val_interp_frame > 0) {
-			//	processed_sequence = core::RetimeSequence(processed_sequence, optical_flow, val_interp_frame);
-			//}
-
-			//if (chk_motion_trail) {
-			//	processed_sequence = core::ApplyMotionTrail(processed_sequence, core::GenerateMotionTrail(processed_sequence));
-			//}
+				if (chk_vintage) {
+					processed_sequence = core::VintageFilter(processed_sequence, mask_vintage);
+				}
+				else if (chk_miniature) {
+				
+				
+				}
+				else if (chk_motion_trail) {
+					processed_sequence = core::ApplyMotionTrail(processed_sequence, core::GenerateMotionTrail(processed_sequence));
+				}
+				else if (chk_lomo) {
+				
+				
+				}
 
 				sequence_length = processed_sequence.size() - 1;
 			}
 		}
 
-		if (cvui::button(gui, 12, 558, 178, 32, "Exit")) {
-			break;
+		if (cvui::button(gui, 12, 510, 178, 32, "Reset")) {
+			CURRENT_STATE = STATE::IDLE;
+			current_frame = 0;
+			sequence_length = 1;
+			raw_sequence.clear();
+			processed_sequence.clear();
+			cv::VideoCapture input_video(IMPORT_PATH);
+			if (!input_video.isOpened()) {
+				std::cerr << "Invalid File" << std::endl;
+			}
+			else {
+				video_cache = input_video;
+				CURRENT_STATE = STATE::LOAD;
+			}
+
 		}
+
+		cvui::window(gui, 6, 552, 190, 44, "Option");
+		if (HAS_CUDA) {
+			cvui::checkbox(gui, 12, 576, "Use CUDA", &USE_CUDA);
+		}
+		else {
+			cvui::text(gui, 12, 576, "No CUDA Device");
+		}
+
+
 
 		// GUI: Previwer
 		cvui::window(gui, 200, 6, 644, 504, "Preview");
@@ -221,6 +287,9 @@ int main(void){
 
 
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		// Filter check
+
+		
 		// Frame check
 		if (current_frame < 0) {
 			current_frame = 0;
@@ -234,7 +303,7 @@ int main(void){
 		// Start reading frames from selected video and store them into a vector
 		while (CURRENT_STATE == STATE::LOAD) {
 			cv::Mat frame;
-			bool is_reading_video = footage.read(frame);
+			bool is_reading_video = video_cache.read(frame);
 			
 
 			// If reach the end of video
@@ -242,6 +311,7 @@ int main(void){
 				CURRENT_STATE = STATE::IDLE;
 				processed_sequence = raw_sequence;		
 				sequence_length = processed_sequence.size() - 1;
+				video_cache.release();
 			}
 			else {
 				// Pass each frame to the image sequence vector

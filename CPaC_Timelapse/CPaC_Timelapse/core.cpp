@@ -3,18 +3,16 @@
 #include <opencv2/core/cuda.hpp>
 #include <opencv2/cudaoptflow.hpp>
 #include <opencv2/cudaimgproc.hpp>
-#include <opencv2/video/tracking.hpp>
 #include <math.h>
 #include "core.h"
 #include "utility.h"
 
-std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> raw_sequence) {
+std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> &raw_sequence, bool &use_cuda) {
 	
 	// Tic
 	std::cout << "@Computing Optical Flow (Dense)" << std::endl;
 	clock_t start_time = std::clock();
 
-	bool cuda = true;
 	std::vector<cv::Mat> optical_flow;
 
 	// Create Farneback optical flow operator
@@ -26,7 +24,7 @@ std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> raw_sequence)
 
 	for (int i = 0; i < raw_sequence.size() - 1; i++) {
 
-		if (cuda){
+		if (use_cuda){
 		cv::cuda::GpuMat frame_previous, frame_next, frame_flow;
 		cv::Mat flow;
 
@@ -63,7 +61,7 @@ std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> raw_sequence)
 	//std::cout << "" << std::endl;
 	// Toc
 	double time_taken = (clock() - start_time) / (double)CLOCKS_PER_SEC;	
-	if (cuda) {
+	if (use_cuda) {
 		std::cout << "CUDA Optical Flow takes " + std::to_string(time_taken) + "s to complete " + std::to_string(raw_sequence.size()-1) + " optical flows" << std::endl;
 	}else{
 		std::cout << "CPU Optical Flow takes " + std::to_string(time_taken) + "s to complete " + std::to_string(raw_sequence.size()-1) + " optical flows" << std::endl;
@@ -212,7 +210,7 @@ std::vector<cv::Mat> core::GenerateMotionTrail(std::vector<cv::Mat>input_sequenc
 
 	for (int i = 0; i < motion_sequence.size(); i++) {
 	
-		int motion_interval = 30;
+		int motion_interval = 0.1 * input_sequence.size();
 		cv::Mat motion_trail = cv::Mat::zeros(motion_sequence.front().size(), CV_8UC3);
 		cv::cuda::GpuMat motion_trail_cuda;
 
@@ -230,7 +228,7 @@ std::vector<cv::Mat> core::GenerateMotionTrail(std::vector<cv::Mat>input_sequenc
 
 		cv::Mat motion_trail_adjusted;
 		cv::normalize(motion_trail, motion_trail_adjusted, 0, 255, cv::NORM_MINMAX);
-		cv::applyColorMap(motion_trail_adjusted, motion_trail_adjusted, cv::COLORMAP_OCEAN);
+		cv::applyColorMap(motion_trail_adjusted, motion_trail_adjusted, cv::COLORMAP_HOT);
 		motion_sequence_merge.push_back(motion_trail_adjusted);
 	}
 
@@ -255,11 +253,11 @@ std::vector<cv::Mat> core::ApplyMotionTrail(std::vector<cv::Mat>input_sequence, 
 
 	for (int i = 0; i < input_sequence.size(); i++) {
 
-		cv::Mat frame_current;
+		/*cv::Mat frame_current;
 		cv::cvtColor(input_sequence[i], frame_current, CV_BGR2GRAY);
-		cv::cvtColor(frame_current, frame_current, CV_GRAY2BGR);
+		cv::cvtColor(frame_current, frame_current, CV_GRAY2BGR);*/
 		cv::Mat frame_blended;
-		cv::addWeighted(motion_trail[i], alpha, frame_current, beta, 0.0, frame_blended);
+		cv::addWeighted(motion_trail[i], alpha, input_sequence[i], beta, 0.0, frame_blended);
 		blended_sequence.push_back(frame_blended);
 	}
 
@@ -304,7 +302,7 @@ std::vector<cv::Mat> core::EnhanceImage(std::vector<cv::Mat> input_sequence) {
 
 }
 
-std::vector<cv::Mat> core::RetroFilter(std::vector<cv::Mat> input_sequence) {
+std::vector<cv::Mat> core::VintageFilter(std::vector<cv::Mat> input_sequence, std::vector<cv::Mat> mask_sequence) {
 
 	// Tic
 	std::cout << "@Applying Retro Filter" << std::endl;
@@ -312,8 +310,25 @@ std::vector<cv::Mat> core::RetroFilter(std::vector<cv::Mat> input_sequence) {
 
 	std::vector<cv::Mat> filtered_sequence;
 
+	int mask_size = mask_sequence.size();
+	double alpha = 0.2;
+	double beta = (1.0 - alpha);
+
+	double mask_duration_count = 0;
+	int m = rand() % mask_size;
+
 	for (int i = 0; i < input_sequence.size(); i++) {
+
+		if (mask_duration_count < 5) {
+			mask_duration_count++;
+		}
+		else {
+			m = rand() % mask_size;
+			mask_duration_count = 0;
+		}
+		
 		cv::Mat filtered_frame = cv::Mat::zeros(input_sequence.front().size(), CV_8UC3);
+		cv::Mat mask, blended_frame;
 		for (int x = 0; x < input_sequence[i].rows; x++) {
 			for (int y = 0; y < input_sequence[i].cols; y++) {
 				int b = input_sequence[i].at<cv::Vec3b>(x, y)[0];
@@ -336,7 +351,10 @@ std::vector<cv::Mat> core::RetroFilter(std::vector<cv::Mat> input_sequence) {
 				filtered_frame.at<cv::Vec3b>(x, y)[2] = r_new;
 			}
 		}
-		filtered_sequence.push_back(filtered_frame);
+
+		cv::resize(mask_sequence[m], mask, filtered_frame.size());
+		cv::addWeighted(mask, alpha, filtered_frame, beta, 0.0, blended_frame);
+		filtered_sequence.push_back(blended_frame);
 	}
 
 	// Toc
