@@ -158,7 +158,7 @@ cv::Mat core::GenerateGammaLookupTable(double gamma) {
 	for (int i = 0; i < 256; i++) {
 		gamma_lookup_table.at<uint8_t>(0, i) = pow(i / 255.0, gamma) * 255.0;
 
-		std::cout << std::to_string(gamma_lookup_table.at<uint8_t>(0, i)) << std::endl;
+		//std::cout << std::to_string(gamma_lookup_table.at<uint8_t>(0, i)) << std::endl;
 	}
 	return gamma_lookup_table;
 }
@@ -184,7 +184,6 @@ std::vector<cv::Mat> core::GammaCorrection(std::vector<cv::Mat> raw_sequence, cv
 //
 //	}
 //}
-
 
 std::vector<cv::Mat> core::GenerateMotionTrail(std::vector<cv::Mat>input_sequence) {
 
@@ -256,7 +255,6 @@ std::vector<cv::Mat> core::ApplyMotionTrail(std::vector<cv::Mat>input_sequence, 
 
 	for (int i = 0; i < input_sequence.size(); i++) {
 
-
 		cv::Mat frame_current;
 		cv::cvtColor(input_sequence[i], frame_current, CV_BGR2GRAY);
 		cv::cvtColor(frame_current, frame_current, CV_GRAY2BGR);
@@ -271,6 +269,83 @@ std::vector<cv::Mat> core::ApplyMotionTrail(std::vector<cv::Mat>input_sequence, 
 
 	return blended_sequence;
 }
+
+
+std::vector<cv::Mat> core::EnhanceImage(std::vector<cv::Mat> input_sequence) {
+
+	std::vector<cv::Mat> placeholder;
+	float alpha, beta;
+	
+
+	for (int i = 0; i < input_sequence.size(); i++) {
+		cv::Mat frame_he;
+		cv::cvtColor(input_sequence[i], frame_he, CV_BGR2HSV);
+
+		//Split the frame into Hue, Saturation and Value(intensity)
+		std::vector<cv::Mat> frame_channels;
+		split(frame_he, frame_channels);
+
+		//Equalize the histogram of only the V channel 
+		cv::equalizeHist(frame_channels[2], frame_channels[2]);
+
+		//Merge channels back to a single frame
+		merge(frame_channels, frame_he);
+
+		//Convert the color back to RGB
+		cv::cvtColor(frame_he, frame_he, CV_HSV2BGR);
+
+		placeholder.push_back(frame_he);
+
+	}
+
+	std::cout << "Done" << std::endl;
+
+	return placeholder;
+
+}
+
+std::vector<cv::Mat> core::RetroFilter(std::vector<cv::Mat> input_sequence) {
+
+	// Tic
+	std::cout << "@Applying Retro Filter" << std::endl;
+	clock_t start_time = std::clock();
+
+	std::vector<cv::Mat> filtered_sequence;
+
+	for (int i = 0; i < input_sequence.size(); i++) {
+		cv::Mat filtered_frame = cv::Mat::zeros(input_sequence.front().size(), CV_8UC3);
+		for (int x = 0; x < input_sequence[i].rows; x++) {
+			for (int y = 0; y < input_sequence[i].cols; y++) {
+				int b = input_sequence[i].at<cv::Vec3b>(x, y)[0];
+				int g = input_sequence[i].at<cv::Vec3b>(x, y)[1];
+				int r = input_sequence[i].at<cv::Vec3b>(x, y)[2];
+
+				int b_new = 0.272*(float)r + 0.534*(float)g + 0.131*(float)b;
+				int g_new = 0.349*(float)r + 0.686*(float)g + 0.168*(float)b;
+				int r_new = 0.393*(float)r + 0.769*(float)g + 0.189*(float)b;
+
+				if (b_new > 255) b_new = 255;
+				if (g_new > 255) g_new = 255;
+				if (r_new > 255) r_new = 255;
+				if (b_new < 0) b_new = 0;
+				if (g_new < 0) b_new = 0;
+				if (r_new < 0) b_new = 0;
+
+				filtered_frame.at<cv::Vec3b>(x, y)[0] = b_new;
+				filtered_frame.at<cv::Vec3b>(x, y)[1] = g_new;
+				filtered_frame.at<cv::Vec3b>(x, y)[2] = r_new;
+			}
+		}
+		filtered_sequence.push_back(filtered_frame);
+	}
+
+	// Toc
+	double time_taken = (clock() - start_time) / (double)CLOCKS_PER_SEC;
+	std::cout << "Elapsed time is " + std::to_string(time_taken) + "s " << std::endl;
+
+	return filtered_sequence;
+}
+
 
 std::vector<cv::Mat> core::GetRemapMatrix(int h, int w) {
 

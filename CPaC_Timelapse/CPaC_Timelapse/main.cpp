@@ -43,7 +43,8 @@ bool chk_gamma = false;
 bool chk_stablise = false;
 bool chk_hdr = false;
 bool chk_motion_trail = false;
-int val_interp_frame = 4;
+int val_interp_frame = 0;
+int val_import_fps = 1;
 int val_export_fps = 60;
 
 int main(void){
@@ -55,6 +56,7 @@ int main(void){
 	}
 
 	// File browser
+	// Reference: https://docs.microsoft.com/en-us/windows/desktop/api/commdlg/nf-commdlg-getopenfilenamea
 	OPENFILENAME ofn;       // common dialog box structure
 	char szFile[260];       // buffer for file name
 	HWND hwnd = NULL;              // owner window
@@ -100,6 +102,8 @@ int main(void){
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		// GUI: Read & Save Files
 		cvui::window(gui, 6, 6, 190, 162, "File");
+
+
 		if (cvui::button(gui, 12, 32, 178, 32,"Import (Video/Image)")) {
 			ofn.lpstrFilter = "All\0*.*\0Text\0*.TXT\0";
 			if (GetOpenFileName(&ofn) == TRUE) {
@@ -146,31 +150,38 @@ int main(void){
 			
 		cvui::checkbox(gui, 12, 220, "Motion Trail", &chk_motion_trail);
 		//cvui::checkbox(gui, 12, 250, "Stablisation", &chk_stablise);
-		//cvui::checkbox(gui, 12, 280, "Gammar Correction", &chk_gamma);
+		cvui::checkbox(gui, 12, 280, "Image Enhancement", &chk_gamma);
 		//cvui::checkbox(gui, 12, 310, "HDR (Pseudo)", &chk_hdr);
 		cvui::text(gui, 12, 340, "Interpolation");
 		cvui::counter(gui, 98, 335, &val_interp_frame);
 
 		if (cvui::button(gui, 12, 400, 178, 32, "Run")) {
 			if (!processed_sequence.empty()) {
-				//if (optical_flow.empty() || optical_flow.size() + 1 != raw_sequence.size()) {
-			//		optical_flow = core::ComputeOpticalFlow(raw_sequence);	
+				if (val_interp_frame > 0) {
+					if (optical_flow.empty() || optical_flow.size() + 1 != raw_sequence.size()) {
+						optical_flow = core::ComputeOpticalFlow(raw_sequence);
+					}
+					else {
+					}
+				
+			}
+
+			//if (chk_gamma) {
+			//	//processed_sequence = core::GammaCorrection(processed_sequence, gamma_lookup_table);
+				//processed_sequence = core::EnhanceImage(processed_sequence);
+
+				processed_sequence = core::RetroFilter(processed_sequence);
 			//}
 
 			//if (val_interp_frame > 0) {
 			//	processed_sequence = core::RetimeSequence(processed_sequence, optical_flow, val_interp_frame);
 			//}
 
-			//if (chk_gamma) {
-			//	processed_sequence = core::GammaCorrection(processed_sequence, gamma_lookup_table);
+			//if (chk_motion_trail) {
+			//	processed_sequence = core::ApplyMotionTrail(processed_sequence, core::GenerateMotionTrail(processed_sequence));
 			//}
 
-				std::vector<cv::Mat> motion_trail = core::GenerateMotionTrail(processed_sequence);
-
-				processed_sequence = core::ApplyMotionTrail(processed_sequence, motion_trail);
-
 				sequence_length = processed_sequence.size() - 1;
-
 			}
 		}
 
@@ -205,11 +216,7 @@ int main(void){
 				}
 			}
 		}
-
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
 
 
 
@@ -222,10 +229,13 @@ int main(void){
 			current_frame = sequence_length;
 		}
 
+		int frame_count = 0;
+
 		// Start reading frames from selected video and store them into a vector
 		while (CURRENT_STATE == STATE::LOAD) {
 			cv::Mat frame;
 			bool is_reading_video = footage.read(frame);
+			
 
 			// If reach the end of video
 			if (!is_reading_video) {
@@ -235,8 +245,10 @@ int main(void){
 			}
 			else {
 				// Pass each frame to the image sequence vector
-				raw_sequence.push_back(frame);
-				std::cout << raw_sequence.size() << std::endl;
+				if (frame_count % val_import_fps == 0) {
+					raw_sequence.push_back(frame);
+				}
+				frame_count++;
 			}
 		}
 
