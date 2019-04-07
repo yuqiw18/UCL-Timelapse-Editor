@@ -70,7 +70,7 @@ std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> &raw_sequence
 	return optical_flow;
 }
 
-std::vector<cv::Mat> core::RetimeSequence(std::vector<cv::Mat> raw_sequence, std::vector<cv::Mat> optical_flow, int interpolation_frames) {
+std::vector<cv::Mat> core::RetimeSequence(std::vector<cv::Mat> &raw_sequence, std::vector<cv::Mat> &optical_flow, int &interpolation_frames) {
 	
 	// Tic
 	std::cout << "@Retiming Timelapse" << std::endl;
@@ -302,7 +302,7 @@ std::vector<cv::Mat> core::EnhanceImage(std::vector<cv::Mat> input_sequence) {
 
 }
 
-std::vector<cv::Mat> core::VintageFilter(std::vector<cv::Mat> input_sequence, std::vector<cv::Mat> mask_sequence) {
+std::vector<cv::Mat> core::Vintage(std::vector<cv::Mat> &input_sequence, std::vector<cv::Mat> &mask_sequence) {
 
 	// Tic
 	std::cout << "@Applying Retro Filter" << std::endl;
@@ -364,6 +364,41 @@ std::vector<cv::Mat> core::VintageFilter(std::vector<cv::Mat> input_sequence, st
 	return filtered_sequence;
 }
 
+std::vector<cv::Mat> core::Miniature(std::vector<cv::Mat> &input_sequence, cv::Mat &mask_miniature) {
+
+	std::vector<cv::Mat> filtered_sequence;
+
+	cv::Mat mask;
+	cv::resize(mask_miniature, mask, input_sequence.front().size());
+	cv::cvtColor(mask, mask, CV_BGR2GRAY);
+
+	for (int i = 0; i < input_sequence.size(); i++) {
+	
+		cv::Mat blurred_mask, blurred_frame;
+		cv::Mat filtered_frame = cv::Mat::zeros(input_sequence.front().size(), input_sequence.front().type());
+
+		cv::GaussianBlur(mask, blurred_mask, cv::Size(13, 13), 0, 0, cv::BORDER_REPLICATE);
+		cv::GaussianBlur(input_sequence[i], blurred_frame, cv::Size(13, 13), 0, 0, cv::BORDER_REPLICATE);
+
+		for (int x = 0; x < filtered_frame.rows; x++){
+			for (int y = 0; y < filtered_frame.cols; y++){
+
+				cv::Vec3b input_pixel = input_sequence[i].at<cv::Vec3b>(x, y);
+				cv::Vec3b blurred_pixel = blurred_frame.at<cv::Vec3b>(x, y);
+				uchar mask_pixel = blurred_mask.at<uchar>(x, y);
+
+				float alpha = mask_pixel / 255.0;
+				float beta = 1.0 - alpha;
+
+				filtered_frame.at<cv::Vec3b>(x, y) = beta * input_pixel + alpha * blurred_pixel;
+			}
+		}
+		filtered_sequence.push_back(filtered_frame);
+	}
+	
+	return filtered_sequence;
+
+}
 
 std::vector<cv::Mat> core::GetRemapMatrix(int h, int w) {
 

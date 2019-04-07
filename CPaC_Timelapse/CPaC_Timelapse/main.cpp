@@ -101,6 +101,7 @@ srand(time(NULL));
 	std::vector<cv::Mat> processed_sequence;
 	std::vector<cv::Mat> optical_flow;
 	std::vector<cv::Mat> mask_vintage;
+	cv::Mat mask_miniature = cv::imread("appdata/mask_m/mask_m.png");
 	cv::Mat gamma_lookup_table = core::GenerateGammaLookupTable(2.2);
 
 	int current_frame = 0;
@@ -110,7 +111,7 @@ srand(time(NULL));
 
 	//core *toolbox = new core();
 
-	cv::VideoCapture input_mask("data/mask_v/mask_v-01.png");
+	cv::VideoCapture input_mask("appdata/mask_v/mask_v-01.png");
 	if (!input_mask.isOpened()) {
 		HAS_CUDA = false;
 	}
@@ -201,6 +202,8 @@ srand(time(NULL));
 				
 				}
 
+				processed_sequence = raw_sequence;
+
 				if (val_interp_frame > 0) {
 					processed_sequence = core::RetimeSequence(processed_sequence, optical_flow, val_interp_frame);
 				}
@@ -210,10 +213,10 @@ srand(time(NULL));
 				}
 
 				if (chk_vintage) {
-					processed_sequence = core::VintageFilter(processed_sequence, mask_vintage);
+					processed_sequence = core::Vintage(processed_sequence, mask_vintage);
 				}
 				else if (chk_miniature) {
-				
+					processed_sequence = core::Miniature(processed_sequence, mask_miniature);
 				
 				}
 				else if (chk_motion_trail) {
