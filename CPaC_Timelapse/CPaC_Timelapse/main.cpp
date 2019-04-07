@@ -67,25 +67,25 @@ int main(void){
 
 	// File browser
 	// Reference: https://docs.microsoft.com/en-us/windows/desktop/api/commdlg/nf-commdlg-getopenfilenamea
-	OPENFILENAME ofn;       // common dialog box structure
+	OPENFILENAME open_file_name;       // common dialog box structure
 	char szFile[260];       // buffer for file name
 	HWND hwnd = NULL;              // owner window
-	HANDLE hf;              // file handle
+	HANDLE file_handler;              // file handle
 
 	// Initialise OPENFILENAME
-	ZeroMemory(&ofn, sizeof(ofn));
-	ofn.lStructSize = sizeof(ofn);
-	ofn.hwndOwner = hwnd;
-	ofn.lpstrFile = szFile;
+	ZeroMemory(&open_file_name, sizeof(open_file_name));
+	open_file_name.lStructSize = sizeof(open_file_name);
+	open_file_name.hwndOwner = hwnd;
+	open_file_name.lpstrFile = szFile;
 
-	ofn.lpstrFile[0] = '\0';
-	ofn.nMaxFile = sizeof(szFile);
-	ofn.lpstrFilter = "All\0*.*\0Text\0*.TXT\0";
-	ofn.nFilterIndex = 1;
-	ofn.lpstrFileTitle = NULL;
-	ofn.nMaxFileTitle = 0;
-	ofn.lpstrInitialDir = NULL;
-	ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+	open_file_name.lpstrFile[0] = '\0';
+	open_file_name.nMaxFile = sizeof(szFile);
+	open_file_name.lpstrFilter = "All\0*.*\0Text\0*.TXT\0";
+	open_file_name.nFilterIndex = 1;
+	open_file_name.lpstrFileTitle = NULL;
+	open_file_name.nMaxFileTitle = 0;
+	open_file_name.lpstrInitialDir = NULL;
+	open_file_name.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 
 	// Initialise GUI
 	cv::Mat gui = cv::Mat(600, 850, CV_8UC3);
@@ -138,8 +138,8 @@ int main(void){
 		// GUI: Read & Save Files
 		cvui::window(gui, 6, 6, 190, 196, "File");
 		if (cvui::button(gui, 12, 32, 178, 32,"Import (Video/Image)")) {
-			ofn.lpstrFilter = "All\0*.*\0Text\0*.TXT\0";
-			if (GetOpenFileName(&ofn) == TRUE) {
+			open_file_name.lpstrFilter = "All\0*.*\0Text\0*.TXT\0";
+			if (GetOpenFileName(&open_file_name) == TRUE) {
 
 				// Reset variables
 				CURRENT_STATE = STATE::IDLE;
@@ -150,7 +150,7 @@ int main(void){
 				optical_flow.clear();
 
 				// Determine file type
-				IMPORT_PATH = utility::FilePathParser(ofn.lpstrFile);
+				IMPORT_PATH = utility::FilePathParser(open_file_name.lpstrFile);
 				cv::VideoCapture input_video(IMPORT_PATH);
 				if (!input_video.isOpened()) {
 					std::cerr << "Invalid File" << std::endl;
@@ -165,9 +165,9 @@ int main(void){
 		cvui::trackbar(gui, 50, 65, 148, &val_import_fps, (int)1, (int)60, 1, "%.0Lf", cvui::TRACKBAR_DISCRETE, (int)1);
 
 		if (cvui::button(gui, 12, 116, 178, 32, "Export (Video)")) {
-			ofn.lpstrFilter = "All\0*.*\0Text\0*.TXT\0";
-			if (GetSaveFileName(&ofn) == TRUE) {
-				EXPORT_PATH = ofn.lpstrFile;
+			open_file_name.lpstrFilter = "All\0*.*\0Text\0*.TXT\0";
+			if (GetSaveFileName(&open_file_name) == TRUE) {
+				EXPORT_PATH = open_file_name.lpstrFile;
 				CURRENT_STATE = STATE::SAVE;
 			}
 		}
