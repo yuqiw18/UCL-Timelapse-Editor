@@ -131,28 +131,6 @@ std::vector<cv::Mat> core::ConvertFlowXY(cv::Mat optical_flow) {
 	return flow_xy;
 }
 
-cv::Mat core::GenerateGammaLookupTable(double gamma) {
-	// Gamma correction for sRGB
-	cv::Mat gamma_lookup_table = cv::Mat::zeros(1, 256, CV_8UC1);
-	for (int i = 0; i < 256; i++) {
-		gamma_lookup_table.at<uint8_t>(0, i) = pow(i / 255.0, gamma) * 255.0;
-
-		//std::cout << std::to_string(gamma_lookup_table.at<uint8_t>(0, i)) << std::endl;
-	}
-	return gamma_lookup_table;
-}
-
-std::vector<cv::Mat> core::GammaCorrection(std::vector<cv::Mat> raw_sequence, cv::Mat &gamma_lookup_table) {
-
-	for (int i = 0; i < raw_sequence.size(); i++) {
-		cv::Mat frame_corrected;
-		cv::LUT(raw_sequence[i], gamma_lookup_table, frame_corrected);
-		raw_sequence[i] = frame_corrected;
-	}
-
-	return raw_sequence;
-}
-
 std::vector<cv::Mat> core::GenerateMotionTrail(std::vector<cv::Mat>input_sequence) {
 
 	// Tic
@@ -240,10 +218,12 @@ std::vector<cv::Mat> core::ApplyMotionTrail(std::vector<cv::Mat>input_sequence, 
 std::vector<cv::Mat> core::EnhanceImage(std::vector<cv::Mat> input_sequence) {
 
 	// Tic
-	std::cout << "@Matching Histogram" << std::endl;
+	std::cout << "@Enhancing Images" << std::endl;
 	clock_t start_time = std::clock();
 
 	std::vector<cv::Mat> enhanced_senquance;
+
+	// Histogram Matching
 	float alpha, beta;
 	int pixel_count = input_sequence.front().rows * input_sequence.front().cols;
 	
@@ -446,3 +426,55 @@ std::vector<cv::Mat> core::Miniature(std::vector<cv::Mat> &input_sequence, cv::M
 
 	return filtered_sequence;
 }
+
+std::vector<cv::Mat> core::ContrastStretching(std::vector<cv::Mat> input_sequence) {
+
+	std::vector<cv::Mat> stretched_senquance;
+	for (int i = 0; i < input_sequence.size(); i++) {
+
+		// Convert to YCrCb to get intensity channel
+		cv::Mat source_frame;
+		std::vector<cv::Mat> color_channels;
+		cv::cvtColor(input_sequence[i], source_frame, CV_BGR2YCrCb);
+		cv::split(source_frame, color_channels);
+
+		// Get minimum and maximum intensity
+		double min, max;
+		cv::minMaxIdx(color_channels[0], &min, &max);
+		
+		// Stretch using linear mapping formula so that values are distributed across [0, 255]
+		color_channels[0] = 255 * (color_channels[0] - (int)min) / ((int)max - (int)min);
+
+		// Convert back to B, G, R
+		cv::Mat stretched_frame;
+		cv::merge(color_channels, stretched_frame);
+		cv::cvtColor(stretched_frame, stretched_frame, CV_YCrCb2BGR);
+
+		stretched_senquance.push_back(stretched_frame);
+	}
+	return stretched_senquance;
+}
+
+// ...... UNUSED FUNCTIONS 
+cv::Mat core::GenerateGammaLookupTable(double gamma) {
+	// Gamma correction for sRGB
+	cv::Mat gamma_lookup_table = cv::Mat::zeros(1, 256, CV_8UC1);
+	for (int i = 0; i < 256; i++) {
+		gamma_lookup_table.at<uint8_t>(0, i) = pow(i / 255.0, gamma) * 255.0;
+
+		//std::cout << std::to_string(gamma_lookup_table.at<uint8_t>(0, i)) << std::endl;
+	}
+	return gamma_lookup_table;
+}
+
+std::vector<cv::Mat> core::GammaCorrection(std::vector<cv::Mat> raw_sequence, cv::Mat &gamma_lookup_table) {
+
+	for (int i = 0; i < raw_sequence.size(); i++) {
+		cv::Mat frame_corrected;
+		cv::LUT(raw_sequence[i], gamma_lookup_table, frame_corrected);
+		raw_sequence[i] = frame_corrected;
+	}
+
+	return raw_sequence;
+}
+

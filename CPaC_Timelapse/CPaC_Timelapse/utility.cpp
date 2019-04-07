@@ -46,6 +46,42 @@ std::string utility::FilePathParser(std::string file_path) {
 
 }
 
+std::string utility::ConvertFPStoTime(int total_frames, int fps){
+	
+	std::string h, m, s;
+	
+	int second = total_frames / fps;
+	int remain_second = second % 60;
+	int minute = (second-remain_second) / 60;
+	int remain_minute = minute % 60;
+	int hour = (minute-remain_minute) / 60;
+
+	if (hour / 10 >= 1) {
+		h = std::to_string(hour);
+	}
+	else {
+		h = "0" + std::to_string(hour);
+	}
+
+	if (remain_minute / 10 >= 1) {
+		m = std::to_string(remain_minute);
+	}
+	else {
+		m = "0" + std::to_string(remain_minute);
+	}
+
+	if (remain_second / 10 >= 1) {
+		s = std::to_string(remain_second);
+	}
+	else {
+		s = "0" + std::to_string(remain_second);
+	}
+
+	std::string time;
+	time = h + ":" + m + ":" + s;
+	return time;
+}
+
 cv::Mat utility::im2uint8(cv::Mat mat) {
 	mat.convertTo(mat, CV_8UC3, 255);
 	return mat;
