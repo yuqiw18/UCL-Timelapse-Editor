@@ -319,7 +319,8 @@ std::vector<cv::Mat> core::Vintage(std::vector<cv::Mat> &input_sequence, std::ve
 
 	for (int i = 0; i < input_sequence.size(); i++) {
 
-		if (mask_duration_count < 5) {
+		// Randomly pick an artefact mask
+		if (mask_duration_count < 6) {
 			mask_duration_count++;
 		}
 		else {
@@ -327,18 +328,23 @@ std::vector<cv::Mat> core::Vintage(std::vector<cv::Mat> &input_sequence, std::ve
 			mask_duration_count = 0;
 		}
 		
+		// Apply the sepia filter
 		cv::Mat filtered_frame = cv::Mat::zeros(input_sequence.front().size(), CV_8UC3);
 		cv::Mat mask, blended_frame;
 		for (int x = 0; x < input_sequence[i].rows; x++) {
 			for (int y = 0; y < input_sequence[i].cols; y++) {
+
+				// Get B, G, R value from each channel
 				int b = input_sequence[i].at<cv::Vec3b>(x, y)[0];
 				int g = input_sequence[i].at<cv::Vec3b>(x, y)[1];
 				int r = input_sequence[i].at<cv::Vec3b>(x, y)[2];
 
+				// Create the new B, G, R value using the formula
 				int b_new = 0.272*(float)r + 0.534*(float)g + 0.131*(float)b;
 				int g_new = 0.349*(float)r + 0.686*(float)g + 0.168*(float)b;
 				int r_new = 0.393*(float)r + 0.769*(float)g + 0.189*(float)b;
 
+				// Make sure the obtained values are between 0 and 255
 				if (b_new > 255) b_new = 255;
 				if (g_new > 255) g_new = 255;
 				if (r_new > 255) r_new = 255;
@@ -346,14 +352,18 @@ std::vector<cv::Mat> core::Vintage(std::vector<cv::Mat> &input_sequence, std::ve
 				if (g_new < 0) b_new = 0;
 				if (r_new < 0) b_new = 0;
 
+				// Assign the new B, G, R value
 				filtered_frame.at<cv::Vec3b>(x, y)[0] = b_new;
 				filtered_frame.at<cv::Vec3b>(x, y)[1] = g_new;
 				filtered_frame.at<cv::Vec3b>(x, y)[2] = r_new;
 			}
 		}
 
+		// Apply the mask to the new frame
 		cv::resize(mask_sequence[m], mask, filtered_frame.size());
+		cv::bitwise_not(filtered_frame, filtered_frame);
 		cv::addWeighted(mask, alpha, filtered_frame, beta, 0.0, blended_frame);
+		cv::bitwise_not(blended_frame, blended_frame);
 		filtered_sequence.push_back(blended_frame);
 	}
 
@@ -377,8 +387,8 @@ std::vector<cv::Mat> core::Miniature(std::vector<cv::Mat> &input_sequence, cv::M
 		cv::Mat blurred_mask, blurred_frame;
 		cv::Mat filtered_frame = cv::Mat::zeros(input_sequence.front().size(), input_sequence.front().type());
 
-		cv::GaussianBlur(mask, blurred_mask, cv::Size(13, 13), 0, 0, cv::BORDER_REPLICATE);
-		cv::GaussianBlur(input_sequence[i], blurred_frame, cv::Size(13, 13), 0, 0, cv::BORDER_REPLICATE);
+		cv::GaussianBlur(mask, blurred_mask, cv::Size(7, 7), 0, 0, cv::BORDER_REPLICATE);
+		cv::GaussianBlur(input_sequence[i], blurred_frame, cv::Size(7, 7), 0, 0, cv::BORDER_REPLICATE);
 
 		for (int x = 0; x < filtered_frame.rows; x++){
 			for (int y = 0; y < filtered_frame.cols; y++){
@@ -393,74 +403,10 @@ std::vector<cv::Mat> core::Miniature(std::vector<cv::Mat> &input_sequence, cv::M
 				filtered_frame.at<cv::Vec3b>(x, y) = beta * input_pixel + alpha * blurred_pixel;
 			}
 		}
+		//cv::cvtColor(blurred_mask, blurred_mask, CV_GRAY2BGR);
 		filtered_sequence.push_back(filtered_frame);
 	}
 	
 	return filtered_sequence;
 
-}
-
-std::vector<cv::Mat> core::GetRemapMatrix(int h, int w) {
-
-	std::vector<cv::Mat> remap_xy;
-
-	cv::Mat remap_x_row = cv::Mat::zeros(1, w, CV_32FC1);
-	cv::Mat remap_y_col = cv::Mat::zeros(h, 1, CV_32FC1);
-
-	cv::Mat remap_x, remap_y;
-
-	for (int i = 0; i < w; i++) {
-		remap_x_row.at<float>(0, i) = i;
-	}
-	cv::repeat(remap_x_row, h, 1, remap_x);
-
-
-	for (int i = 0; i < h; i++) {
-		remap_y_col.at<float>(i, 0) = i;
-	}
-	cv::repeat(remap_y_col, 1, w, remap_y);
-
-	remap_xy.push_back(remap_y);
-	remap_xy.push_back(remap_x);
-
-	return remap_xy;
-
-}
-
-std::vector<cv::Mat> core::ConvertFlowXY2(cv::Mat optical_flow, std::vector<cv::Mat> remap_xy) {
-
-	bool cuda = false;
-
-	if (cuda) {
-		std::vector<cv::cuda::GpuMat> flow_xy;
-		cv::cuda::GpuMat remap_x, remap_y, result_x, result_y;
-		cv::Mat flow_x, flow_y;
-
-		cv::cuda::split(optical_flow, flow_xy);
-
-		remap_y.upload(remap_xy[0]);
-		remap_x.upload(remap_xy[1]);
-
-		cv::cuda::add(flow_xy[0], remap_xy[0], result_y);
-		cv::cuda::add(flow_xy[1], remap_xy[1], result_x);
-
-		result_y.download(flow_y);
-		result_x.download(flow_x);
-
-		std::vector<cv::Mat> new_flow_xy;
-		new_flow_xy.push_back(flow_x);
-		new_flow_xy.push_back(flow_y);
-		return new_flow_xy;
-	}
-	else {
-		std::vector<cv::Mat> flow_xy;
-		cv::split(optical_flow, flow_xy);
-
-		std::vector<cv::Mat> new_flow_xy;
-
-		new_flow_xy.push_back(flow_xy[1] + remap_xy[1]);
-		new_flow_xy.push_back(flow_xy[0] + remap_xy[0]);
-
-		return new_flow_xy;
-	}
 }

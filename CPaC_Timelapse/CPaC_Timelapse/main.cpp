@@ -8,7 +8,7 @@ Coded By Yuqi Wang (18043263)
 
 /*
 *Runtime: WINDOWS 10 X64 + OpenCV 3.4 + CUDA 9.1 + VS2017(v15)
-OpenCV CUDA Binaries: https://yuqi.dev/tools/opencv340cuda91.zip
+OpenCV CUDA Binaries: https://jamesbowley.co.uk/downloads/
 
 *External Framework/Library/Plugin:
 cvui(MIT License) https://github.com/Dovyski/cvui
@@ -34,14 +34,16 @@ Bulk Rename Utility https://www.bulkrenameutility.co.uk/Main_Intro.php
 #include "cvui/cvui.h"
 
 #define WINDOW_NAME "Time-Lapse/Slow-Mo Toolbox"
-#define PADDING_HORIZONTAL 6
-#define PADDING_VERTICAL 6
 
 // State Machine (Non-OO)
 const enum STATE { IDLE, LOAD, PROCESS, PLAY, SAVE };
-// Prompt
+
 std::string EXPORT_PATH ="";
 std::string IMPORT_PATH = "";
+
+bool INIT_VINTAGE_MASK = false;
+bool HAS_CUDA = false;
+bool USE_CUDA = false;
 
 bool chk_enhance = false;
 bool chk_vintage = false;
@@ -52,15 +54,11 @@ int val_interp_frame = 0;
 int val_import_fps = 1;
 int val_export_fps = 60;
 
-bool INIT_VINTAGE_MASK = false;
-bool HAS_CUDA = false;
-bool USE_CUDA = false;
-
 int main(void){
 	
 	STATE CURRENT_STATE = STATE::IDLE;
 	
-srand(time(NULL));
+	srand(time(NULL));
 
 	if (cv::cuda::getCudaEnabledDeviceCount() != 0) {
 		HAS_CUDA = true;
@@ -199,7 +197,6 @@ srand(time(NULL));
 					else {
 						std::cout << "Opitcal Flow Already Computed" << std::endl;
 					}
-				
 				}
 
 				processed_sequence = raw_sequence;
@@ -255,8 +252,6 @@ srand(time(NULL));
 		else {
 			cvui::text(gui, 12, 576, "No CUDA Device");
 		}
-
-
 
 		// GUI: Previwer
 		cvui::window(gui, 200, 6, 644, 504, "Preview");
