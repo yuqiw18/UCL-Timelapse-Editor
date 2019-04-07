@@ -12,14 +12,6 @@ OpenCV CUDA Binaries: https://jamesbowley.co.uk/downloads/
 
 *External Framework/Library/Plugin:
 cvui(MIT License) https://github.com/Dovyski/cvui
-
-*Software/Applications Used for Data Collection:
-Timer Camera (Android) https://play.google.com/store/apps/details?id=com.cae.timercamera&hl=en_GB
-	For taking photos at given time interval
-Image Resizer https://www.bricelam.net/ImageResizer/
-	For bulk resizing(downsizing) images
-Bulk Rename Utility https://www.bulkrenameutility.co.uk/Main_Intro.php
-	For bulk renaming image names to a specific format.
 */
 
 #include <opencv2/opencv.hpp>
@@ -33,7 +25,7 @@ Bulk Rename Utility https://www.bulkrenameutility.co.uk/Main_Intro.php
 #define CVUI_IMPLEMENTATION
 #include "cvui/cvui.h"
 
-#define WINDOW_NAME "Time-Lapse/Slow-Mo Toolbox"
+#define WINDOW_NAME "Time-Lapse Toolbox"
 
 // State Machine (Non-OO)
 const enum STATE { IDLE, LOAD, PROCESS, PLAY, SAVE };
@@ -49,7 +41,6 @@ bool chk_enhance = false;
 bool chk_vintage = false;
 bool chk_miniature = false;
 bool chk_motion_trail = false;
-bool chk_lomo = false;
 int val_interp_frame = 0;
 int val_import_fps = 1;
 int val_export_fps = 60;
@@ -67,10 +58,10 @@ int main(void){
 
 	// File browser
 	// Reference: https://docs.microsoft.com/en-us/windows/desktop/api/commdlg/nf-commdlg-getopenfilenamea
-	OPENFILENAME open_file_name;       // common dialog box structure
-	char szFile[260];       // buffer for file name
-	HWND hwnd = NULL;              // owner window
-	HANDLE file_handler;              // file handle
+	OPENFILENAME open_file_name;
+	char szFile[256];
+	HWND hwnd = NULL;
+	HANDLE file_handler;
 
 	// Initialise OPENFILENAME
 	ZeroMemory(&open_file_name, sizeof(open_file_name));
@@ -107,8 +98,6 @@ int main(void){
 
 	std::string PREVIEWER_BUTTON = "Play";
 
-	//core *toolbox = new core();
-
 	cv::VideoCapture input_mask("appdata/mask_v/mask_v-01.png");
 	if (!input_mask.isOpened()) {
 		HAS_CUDA = false;
@@ -131,10 +120,8 @@ int main(void){
 		}
 	}
 
-
 	while (true) {
 		
-		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		// GUI: Read & Save Files
 		cvui::window(gui, 6, 6, 190, 196, "File");
 		if (cvui::button(gui, 12, 32, 178, 32,"Import (Video/Image)")) {
@@ -153,7 +140,7 @@ int main(void){
 				IMPORT_PATH = utility::FilePathParser(open_file_name.lpstrFile);
 				cv::VideoCapture input_video(IMPORT_PATH);
 				if (!input_video.isOpened()) {
-					std::cerr << "Invalid File" << std::endl;
+					std::cout << "Invalid File" << std::endl;
 				}
 				else {
 					video_cache = input_video;
@@ -173,7 +160,6 @@ int main(void){
 		}
 		cvui::text(gui, 12, 166, "FPS(O)");
 		cvui::trackbar(gui, 50, 149, 148, &val_export_fps, (int)1, (int)60, 1, "%.0Lf", cvui::TRACKBAR_DISCRETE, (int)1);
-		
 
 		// GUI: Editor
 		cvui::window(gui, 6, 206, 190, 98, "Retiming (Interpolation)");
@@ -201,28 +187,25 @@ int main(void){
 				processed_sequence = raw_sequence;
 
 				if (val_interp_frame > 0) {
-					processed_sequence = core::RetimeSequence(processed_sequence, optical_flow, val_interp_frame);
+					processed_sequence = core::RetimeSequence(processed_sequence, optical_flow, val_interp_frame, USE_CUDA);
 				}
 
 				if (chk_enhance) {
 					processed_sequence = core::EnhanceImage(processed_sequence);
 				}
 
+				if (chk_motion_trail) {
+					processed_sequence = core::ApplyMotionTrail(processed_sequence, core::GenerateMotionTrail(processed_sequence));
+				}
+
+				if (chk_miniature) {
+					processed_sequence = core::Miniature(processed_sequence, mask_miniature);
+				}
+
 				if (chk_vintage) {
 					processed_sequence = core::Vintage(processed_sequence, mask_vintage);
 				}
-				else if (chk_miniature) {
-					processed_sequence = core::Miniature(processed_sequence, mask_miniature);
-				
-				}
-				else if (chk_motion_trail) {
-					processed_sequence = core::ApplyMotionTrail(processed_sequence, core::GenerateMotionTrail(processed_sequence));
-				}
-				else if (chk_lomo) {
-				
-				
-				}
-
+			
 				sequence_length = processed_sequence.size() - 1;
 			}
 		}
@@ -279,14 +262,7 @@ int main(void){
 				}
 			}
 		}
-		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-		// Filter check
-
-		
+	
 		// Frame check
 		if (current_frame < 0) {
 			current_frame = 0;
@@ -306,6 +282,12 @@ int main(void){
 			// If reach the end of video
 			if (!is_reading_video) {
 				CURRENT_STATE = STATE::IDLE;
+
+				// Add an extra frame to avoid trackbar error
+				if (raw_sequence.size() == 1) {
+					raw_sequence.push_back(raw_sequence.front());
+				}
+
 				processed_sequence = raw_sequence;		
 				sequence_length = processed_sequence.size() - 1;
 				video_cache.release();
@@ -319,13 +301,13 @@ int main(void){
 			}
 		}
 
+		// Saving
 		while (CURRENT_STATE == STATE::SAVE) {
 			if (!processed_sequence.empty()) {
 				cv::VideoWriter video_writer(EXPORT_PATH + "_output.avi", CV_FOURCC('M', 'J', 'P', 'G'), val_export_fps, processed_sequence.front().size());
 				for (int f = 0; f < processed_sequence.size(); f++) {
 					video_writer.write(processed_sequence[f]);
 				}
-
 				std::cout << "Saved" << std::endl;
 				video_writer.release();
 				CURRENT_STATE = STATE::IDLE;
@@ -356,7 +338,6 @@ int main(void){
 			else {
 			}
 		}
-		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 		// Update the GUI
 		cvui::update();
