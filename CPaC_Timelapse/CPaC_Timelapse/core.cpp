@@ -16,10 +16,10 @@ std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> &raw_sequence
 	std::vector<cv::Mat> optical_flow;
 
 	// Create Farneback optical flow operator
-	cv::Ptr<cv::FarnebackOpticalFlow> optical_flow_cv = cv::FarnebackOpticalFlow::create(5, 0.5, false, 15, 20);
-	cv::Ptr< cv::cuda::FarnebackOpticalFlow> optical_flow_cuda = cv::cuda::FarnebackOpticalFlow::create(5,0.5,false,15,20);
+	cv::Ptr<cv::FarnebackOpticalFlow> optical_flow_cv = cv::FarnebackOpticalFlow::create(5, 0.5, false, 15, 5);
+	cv::Ptr< cv::cuda::FarnebackOpticalFlow> optical_flow_cuda = cv::cuda::FarnebackOpticalFlow::create(5,0.5,false,15,5);
 
-	// Initially used for multi-view project
+	// Initially used for multi-view video sprite
 	//cv::Ptr<cv::cuda::DensePyrLKOpticalFlow> optical_flow_cuda = cv::cuda::DensePyrLKOpticalFlow::create(cv::Size(21, 21), 5, 20, true);
 
 	for (int i = 0; i < raw_sequence.size() - 1; i++) {
@@ -56,9 +56,8 @@ std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> &raw_sequence
 			// Save results
 			optical_flow.push_back(flow);
 		}
-		//std::cout << "... ";
 	}
-	//std::cout << "" << std::endl;
+
 	// Toc
 	double time_taken = (clock() - start_time) / (double)CLOCKS_PER_SEC;	
 	if (use_cuda) {
@@ -70,7 +69,7 @@ std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> &raw_sequence
 	return optical_flow;
 }
 
-std::vector<cv::Mat> core::RetimeSequence(std::vector<cv::Mat> &raw_sequence, std::vector<cv::Mat> &optical_flow, int &interpolation_frames, bool &use_cuda) {
+std::vector<cv::Mat> core::RetimeSequence(std::vector<cv::Mat> &raw_sequence, std::vector<cv::Mat> &optical_flow, int &interpolation_frames) {
 	
 	// Tic
 	std::cout << "@Retiming Timelapse" << std::endl;
@@ -80,75 +79,29 @@ std::vector<cv::Mat> core::RetimeSequence(std::vector<cv::Mat> &raw_sequence, st
 
 	for (int i = 0; i < raw_sequence.size()-1; i++) {
 	
-		if (use_cuda) {
-			cv::cuda::GpuMat frame_prev, frame_next;
+		cv::Mat current_flow = optical_flow[i];
 
-			// Assign frames to GPU memory
-			frame_prev.upload(raw_sequence[i]);
-			frame_next.upload(raw_sequence[i + 1]);
+		// Add original frame to the output sequence
+		processed_sequence.push_back(raw_sequence[i]);
 
-			cv::Mat current_flow = optical_flow[i];
+		for (int f = 1; f < interpolation_frames + 1; f++) {
 
-			// Add original frame to the output sequence
-			processed_sequence.push_back(raw_sequence[i]);
+			float alpha = f / (float)(interpolation_frames + 1);
 
-			for (int f = 1; f < interpolation_frames + 1; f++) {
+			cv::Mat f0, f1, frame_interp;
 
-				float alpha = f / (float)(interpolation_frames + 1);
+			// Convert optical flow structure for image warping
+			std::vector<cv::Mat> flow_xy1 = ConvertFlowXY(-current_flow * alpha);
+			cv::remap(raw_sequence[i], f0, flow_xy1[0], flow_xy1[1], cv::INTER_LINEAR, cv::BORDER_REPLICATE);
 
-				cv::cuda::GpuMat frame_prev_interp, frame_next_interp;
-				cv::cuda::GpuMat flow_x1, flow_y1, flow_x2, flow_y2;
-				cv::Mat f0, f1, frame_interp;
+			std::vector<cv::Mat> flow_xy2 = ConvertFlowXY(current_flow * (1.0f - alpha));
+			cv::remap(raw_sequence[i + 1], f1, flow_xy2[0], flow_xy2[1], cv::INTER_LINEAR, cv::BORDER_REPLICATE);
 
-				// Convert optical flow structure for image warping
-				std::vector<cv::Mat> flow_xy1 = ConvertFlowXY(-current_flow * alpha);
+			// Weight interpolated frame
+			frame_interp = (1.0f - alpha) * f0 + alpha * f1;
 
-				flow_x1.upload(flow_xy1[0]);
-				flow_y1.upload(flow_xy1[1]);
-				cv::cuda::remap(frame_prev, frame_prev_interp, flow_x1, flow_y1, cv::INTER_LINEAR, cv::BORDER_REPLICATE);
-
-				std::vector<cv::Mat> flow_xy2 = ConvertFlowXY(current_flow * (1.0f - alpha));
-				flow_x2.upload(flow_xy2[0]);
-				flow_y2.upload(flow_xy2[1]);
-				cv::cuda::remap(frame_next, frame_next_interp, flow_x2, flow_y2, cv::INTER_LINEAR, cv::BORDER_REPLICATE);
-
-				// Get results from the GPU
-				frame_prev_interp.download(f0);
-				frame_next_interp.download(f1);
-
-				// Weight interpolated frame
-				frame_interp = (1.0f - alpha) * f0 + alpha * f1;
-
-				// Save the result
-				processed_sequence.push_back(frame_interp);
-			}
-		}
-		else {
-
-			cv::Mat current_flow = optical_flow[i];
-
-			// Add original frame to the output sequence
-			processed_sequence.push_back(raw_sequence[i]);
-
-			for (int f = 1; f < interpolation_frames + 1; f++) {
-
-				float alpha = f / (float)(interpolation_frames + 1);
-
-				cv::Mat f0, f1, frame_interp;
-
-				// Convert optical flow structure for image warping
-				std::vector<cv::Mat> flow_xy1 = ConvertFlowXY(-current_flow * alpha);
-				cv::remap(raw_sequence[i], f0, flow_xy1[0], flow_xy1[1], cv::INTER_LINEAR, cv::BORDER_REPLICATE);
-
-				std::vector<cv::Mat> flow_xy2 = ConvertFlowXY(current_flow * (1.0f - alpha));
-				cv::remap(raw_sequence[i + 1], f1, flow_xy2[0], flow_xy2[1], cv::INTER_LINEAR, cv::BORDER_REPLICATE);
-
-				// Weight interpolated frame
-				frame_interp = (1.0f - alpha) * f0 + alpha * f1;
-
-				// Save the result
-				processed_sequence.push_back(frame_interp);
-			}
+			// Save the result
+			processed_sequence.push_back(frame_interp);
 		}
 	}
 
@@ -310,7 +263,7 @@ std::vector<cv::Mat> core::EnhanceImage(std::vector<cv::Mat> input_sequence) {
 		split(target_frame, target_frame_channels);
 		split(source_frame, source_frame_channels);
 
-		// Compute normalised CDF
+		// Normalise CDF
 		cv::Mat target_frame_intensity, source_frame_intensity;
 		target_frame_channels[0].convertTo(target_frame_intensity, CV_32FC1);
 		source_frame_channels[0].convertTo(source_frame_intensity, CV_32FC1);
@@ -336,15 +289,21 @@ std::vector<cv::Mat> core::EnhanceImage(std::vector<cv::Mat> input_sequence) {
 
 }
 
+cv::Mat core::ComputeCDF(cv::Mat &input_channel) {
 
-cv::Mat core::ComputeCDF(cv::Mat input_frame) {
+	cv::Mat cdf = cv::Mat::zeros(256, 1, CV_32FC1);
 
-	cv::Mat cdf = cv::Mat::zeros(256,1,CV_32FC1);
+	// Compute histogram
+	cv::Mat histogram;
+	int size = 256;
+	float range[] = { 0, size }; // Range = [min, max)
+	const float* histRange = { range };
+	cv::calcHist(&input_channel, 1, 0, cv::Mat(), histogram, 1, &size, &histRange, true, false);
 
-	for (int i = 0; i < 256; i++) {
-		cv::Mat threshold;
-		cv::inRange(input_frame, 0, i, threshold);
-		cdf.at<float>(i, 0) = float(cv::countNonZero(threshold));
+	// Compute CDF
+	cdf.at<float>(0, 0) = histogram.at<float>(0, 0);
+	for (int i = 1; i < 256; i++) {
+		cdf.at<float>(i, 0) = cdf.at<float>(i - 1, 0) + histogram.at<float>(i, 0);
 	}
 
 	return cdf;
@@ -356,17 +315,16 @@ cv::Mat core::HistogramMatching(cv::Mat intensity_source, cv::Mat cdf_source, cv
 	cv::Mat cdf_matched = cv::Mat::zeros(256, 1, CV_32FC1);
 
 	for (int i = 0; i < 256; i++) {
-		
 		cv::Mat cdf_difference;
-		double min, max;
 		int min_idx[2] = {255,255};
-		int max_idx[2] = {255,255};
 		cdf_difference = cv::abs(cdf_source.at<float>(i, 0) - cdf_target);
-		cv::minMaxIdx(cdf_difference, &min, &max, min_idx, max_idx);
+		cv::minMaxIdx(cdf_difference, NULL, NULL, min_idx, NULL);
 		cdf_matched.at<float>(i, 0) = (float)min_idx[0];
 	}
 
 	cdf_matched.convertTo(cdf_matched, CV_8UC1);
+
+	// Map the values back to the source channel
 	cv::LUT(intensity_source, cdf_matched, matched_intensity);
 
 	return matched_intensity;

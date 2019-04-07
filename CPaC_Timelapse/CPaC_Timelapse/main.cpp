@@ -187,7 +187,7 @@ int main(void){
 				processed_sequence = raw_sequence;
 
 				if (val_interp_frame > 0) {
-					processed_sequence = core::RetimeSequence(processed_sequence, optical_flow, val_interp_frame, USE_CUDA);
+					processed_sequence = core::RetimeSequence(processed_sequence, optical_flow, val_interp_frame);
 				}
 
 				if (chk_enhance) {
