@@ -274,23 +274,22 @@ std::vector<cv::Mat> core::EnhanceImage(std::vector<cv::Mat> input_sequence) {
 	std::vector<cv::Mat> placeholder;
 	float alpha, beta;
 	
-
 	for (int i = 0; i < input_sequence.size(); i++) {
 		cv::Mat frame_he;
-		cv::cvtColor(input_sequence[i], frame_he, CV_BGR2HSV);
+		cv::cvtColor(input_sequence[i], frame_he, CV_BGR2YCrCb);
 
 		//Split the frame into Hue, Saturation and Value(intensity)
 		std::vector<cv::Mat> frame_channels;
 		split(frame_he, frame_channels);
 
 		//Equalize the histogram of only the V channel 
-		cv::equalizeHist(frame_channels[2], frame_channels[2]);
+		cv::equalizeHist(frame_channels[0], frame_channels[0]);
 
 		//Merge channels back to a single frame
 		merge(frame_channels, frame_he);
 
 		//Convert the color back to RGB
-		cv::cvtColor(frame_he, frame_he, CV_HSV2BGR);
+		cv::cvtColor(frame_he, frame_he, CV_YCrCb2BGR);
 
 		placeholder.push_back(frame_he);
 

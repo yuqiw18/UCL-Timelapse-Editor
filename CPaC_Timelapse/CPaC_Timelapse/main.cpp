@@ -181,14 +181,13 @@ int main(void){
 		cvui::trackbar(gui, 50, 230, 148, &val_interp_frame, (int)0, (int)60, 1, "%.0Lf", cvui::TRACKBAR_DISCRETE, (int)1);
 		cvui::checkbox(gui, 12, 282, "Image Enhancement", &chk_enhance);
 
-		cvui::window(gui, 6, 308, 190, 136, "Filter");
+		cvui::window(gui, 6, 308, 190, 106, "Visual Effect");
 		cvui::checkbox(gui, 12, 336, "Vintage (Scenery)", &chk_vintage);
 		cvui::checkbox(gui, 12, 364, "Miniature (City)", &chk_miniature);
 		cvui::checkbox(gui, 12, 392, "Motion Trail (People)", &chk_motion_trail);
-		cvui::checkbox(gui, 12, 420, "Lomo (General)", &chk_lomo);
 
-		cvui::window(gui, 6, 448, 190, 100, "Operation");
-		if (cvui::button(gui, 12, 474, 178, 32, "Proccess")) {
+		cvui::window(gui, 6, 418, 190, 100, "Operation");
+		if (cvui::button(gui, 12, 444, 178, 32, "Proccess")) {
 			if (!processed_sequence.empty()) {
 				if (val_interp_frame > 0) {
 					if (optical_flow.empty() || optical_flow.size() + 1 != raw_sequence.size()) {
@@ -228,7 +227,7 @@ int main(void){
 			}
 		}
 
-		if (cvui::button(gui, 12, 510, 178, 32, "Reset")) {
+		if (cvui::button(gui, 12, 480, 178, 32, "Reset")) {
 			CURRENT_STATE = STATE::IDLE;
 			current_frame = 0;
 			sequence_length = 1;
@@ -245,12 +244,12 @@ int main(void){
 
 		}
 
-		cvui::window(gui, 6, 552, 190, 44, "Option");
+		cvui::window(gui, 6, 522, 190, 52, "Option");
 		if (HAS_CUDA) {
-			cvui::checkbox(gui, 12, 576, "Use CUDA", &USE_CUDA);
+			cvui::checkbox(gui, 12, 550, "Use CUDA", &USE_CUDA);
 		}
 		else {
-			cvui::text(gui, 12, 576, "No CUDA Device");
+			cvui::text(gui, 12, 550, "No CUDA Device");
 		}
 
 		// GUI: Previwer
