@@ -25,7 +25,7 @@ cvui(MIT License) https://github.com/Dovyski/cvui
 #define CVUI_IMPLEMENTATION
 #include "cvui/cvui.h"
 
-#define WINDOW_NAME "Time-Lapse Toolbox"
+#define WINDOW_NAME "Time-Lapse Editor"
 #define WINDOW_WIDTH 850
 #define WINDOW_HEIGHT 600
 // State Machine (Non-OO)
@@ -89,7 +89,8 @@ int main(void){
 	bool HAS_CUDA = false;
 	bool USE_CUDA = false;
 
-	bool chk_enhance = false;
+	bool chk_contrast = false;
+	bool chk_brightness = false;
 	bool chk_vintage = false;
 	bool chk_miniature = false;
 	bool chk_motion_trail = false;
@@ -186,19 +187,20 @@ int main(void){
 		cvui::trackbar(gui, 50, 149, 148, &val_export_fps, (int)1, (int)60, 1, "%.0Lf", cvui::TRACKBAR_DISCRETE, (int)1);
 
 		// GUI: Retiming
-		cvui::window(gui, 6, 206, 190, 98, "Retiming (Interpolation)");
+		cvui::window(gui, 6, 206, 190, 124, "Retiming (Interpolation)");
 		cvui::text(gui, 12, 247, "Frame");
 		cvui::trackbar(gui, 50, 230, 148, &val_interp_frame, (int)0, (int)60, 1, "%.0Lf", cvui::TRACKBAR_DISCRETE, (int)1);
-		cvui::checkbox(gui, 12, 282, "Image Enhancement", &chk_enhance);
+		cvui::checkbox(gui, 12, 282, "Adjust Brightness", &chk_brightness);
+		cvui::checkbox(gui, 12, 306, "Adjust Contrast", &chk_contrast);
 
 		// GUI: Visual Effect
-		cvui::window(gui, 6, 308, 190, 106, "Visual Effect");
-		cvui::checkbox(gui, 12, 336, "Vintage (Scenery)", &chk_vintage);
-		cvui::checkbox(gui, 12, 364, "Miniature (City)", &chk_miniature);
-		cvui::checkbox(gui, 12, 392, "Motion Trail (People)", &chk_motion_trail);
+		cvui::window(gui, 6, 334, 190, 100, "Visual Effect");
+		cvui::checkbox(gui, 12, 362, "Vintage", &chk_vintage);
+		cvui::checkbox(gui, 12, 386, "Miniature", &chk_miniature);
+		cvui::checkbox(gui, 12, 410, "Motion Trail", &chk_motion_trail);
 
-		cvui::window(gui, 6, 418, 190, 100, "Operation");
-		if (cvui::button(gui, 12, 444, 178, 32, "Proccess")) {
+		cvui::window(gui, 6, 438, 190, 100, "Operation");
+		if (cvui::button(gui, 12, 464, 178, 32, "Proccess")) {
 			if (!processed_sequence.empty()) {
 				if (val_interp_frame > 0) {
 					if (optical_flow.empty() || optical_flow.size() + 1 != raw_sequence.size()) {
@@ -216,10 +218,12 @@ int main(void){
 				}
 
 				// Preprocessing
-				if (chk_enhance) {
-					
-					processed_sequence = core::HistogramAnalysis(processed_sequence);
+				if (chk_contrast) {
 					processed_sequence = core::ContrastStretching(processed_sequence);
+					
+				}
+				if (chk_brightness) {
+					processed_sequence = core::HistogramAnalysis(processed_sequence);
 				}
 
 				// Postprocessing
@@ -235,13 +239,12 @@ int main(void){
 					processed_sequence = core::Vintage(processed_sequence, mask_vintage);
 
 				}
-				processed_sequence = core::ContrastStretching(processed_sequence);
 
 				sequence_length = processed_sequence.size() - 1;
 			}
 		}
 
-		if (cvui::button(gui, 12, 480, 178, 32, "Reset")) {
+		if (cvui::button(gui, 12, 500, 178, 32, "Reset")) {
 			CURRENT_STATE = STATE::IDLE;
 			current_frame = 0;
 			sequence_length = 1;
@@ -258,12 +261,12 @@ int main(void){
 
 		}
 
-		cvui::window(gui, 6, 522, 190, 52, "Option");
+		cvui::window(gui, 6, 542, 190, 54, "Option");
 		if (HAS_CUDA) {
-			cvui::checkbox(gui, 12, 550, "Use CUDA", &USE_CUDA);
+			cvui::checkbox(gui, 12, 572, "Use CUDA", &USE_CUDA);
 		}
 		else {
-			cvui::text(gui, 12, 552, "CUDA Disabled");
+			cvui::text(gui, 12, 574, "CUDA Disabled");
 		}
 
 		// GUI: Previwer

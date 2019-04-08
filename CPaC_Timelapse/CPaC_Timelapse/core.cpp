@@ -213,7 +213,7 @@ std::vector<cv::Mat> core::ApplyMotionTrail(std::vector<cv::Mat>input_sequence, 
 	std::vector<cv::Mat> blended_sequence;
 
 	// A. Blending with intensity losing but gives better quality
-	double alpha = 0.24;
+	double alpha = 0.15;
 	double beta = (1.0 - alpha);
 
 	// B. Alpha blending without losing intensity but gives artefacts

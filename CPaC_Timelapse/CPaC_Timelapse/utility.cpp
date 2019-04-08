@@ -81,18 +81,3 @@ std::string utility::ConvertFPStoTime(int total_frames, int fps){
 	time = h + ":" + m + ":" + s;
 	return time;
 }
-
-cv::Mat utility::im2uint8(cv::Mat mat) {
-	mat.convertTo(mat, CV_8UC3, 255);
-	return mat;
-}
-
-cv::Mat utility::im2single(cv::Mat mat) {
-	mat.convertTo(mat, CV_32FC3, 1.0 / 255);
-	return mat;
-}
-
-cv::Mat utility::im2double(cv::Mat mat) {
-	mat.convertTo(mat, CV_64FC3, 1.0 / 255);
-	return mat;
-}
