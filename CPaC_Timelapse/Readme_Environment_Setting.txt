@@ -1,4 +1,4 @@
-1. Requirement: OpenCV 3.4.4
+1. Requirement: OpenCV 3.4.4 *available at https://opencv.org/opencv-4-0-0.html
 2. Edit Environment Variables - System Variables - Double Click [Path] - [New] - C:\Program Files\OpenCV\x64\vc15\bin
 3. Visual Studio Project Setting:
 
@@ -19,3 +19,4 @@ opencv_world344d.lib;
 %(AdditionalDependencies)
 
 Replace C:\Program Files\ if the dependencies are installed at other places
+Debug mode may not work properly, please use Release mode for better performance.

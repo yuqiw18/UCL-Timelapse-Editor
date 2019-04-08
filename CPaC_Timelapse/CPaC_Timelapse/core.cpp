@@ -124,13 +124,16 @@ std::vector<cv::Mat> core::RetimeSequence(std::vector<cv::Mat> &input_sequence, 
 std::vector<cv::Mat> core::ConvertFlowXY(cv::Mat optical_flow) {
 
 	cv::Mat flow(optical_flow.size(), CV_32FC2);
-	// In MATLAB we can simply use the Vy, Vx with imwrap()
-	// In OpenCV we need to convert the optical flow Vy, Vx to the format that can be used by remap() function
+	// In MATLAB we can simply use the Vy, Vx with imwarp()
+	// In OpenCV we need to convert the optical flow Vy, Vx to the format (x+fx, y+f.y) that can be used by remap() function since the x is at the first place and the y is at the second
 	for (int y = 0; y < flow.rows; y++)
 	{
 		for (int x = 0; x < flow.cols; x++)
 		{
+			// Retrieve Vy, Vx
 			cv::Point2f f = optical_flow.at<cv::Point2f>(y, x);
+
+			// Convert the vector field for remapping
 			flow.at<cv::Point2f>(y, x) = cv::Point2f(x + f.x, y + f.y);
 		}
 	}
@@ -141,7 +144,7 @@ std::vector<cv::Mat> core::ConvertFlowXY(cv::Mat optical_flow) {
 	return flow_xy;
 }
 
-std::vector<cv::Mat> core::GenerateMotionTrail(std::vector<cv::Mat>input_sequence) {
+std::vector<cv::Mat> core::GenerateMotionTrail(std::vector<cv::Mat>&input_sequence) {
 
 	// Tic
 	std::cout << "@Generating Motion Trail" << std::endl;
@@ -204,7 +207,7 @@ std::vector<cv::Mat> core::GenerateMotionTrail(std::vector<cv::Mat>input_sequenc
 }
 
 
-std::vector<cv::Mat> core::ApplyMotionTrail(std::vector<cv::Mat>input_sequence, std::vector<cv::Mat>motion_trail) {
+std::vector<cv::Mat> core::ApplyMotionTrail(std::vector<cv::Mat>&input_sequence, std::vector<cv::Mat>motion_trail) {
 	
 	// Tic
 	std::cout << "@Applying Motion Trail" << std::endl;
@@ -256,7 +259,7 @@ std::vector<cv::Mat> core::ApplyMotionTrail(std::vector<cv::Mat>input_sequence, 
 	return blended_sequence;
 }
 
-std::vector<cv::Mat> core::BrightnessSmoothing(std::vector<cv::Mat> input_sequence) {
+std::vector<cv::Mat> core::BrightnessSmoothing(std::vector<cv::Mat>&input_sequence) {
 
 	std::vector<cv::Mat> enhanced_senquance;
 
@@ -299,7 +302,7 @@ std::vector<cv::Mat> core::BrightnessSmoothing(std::vector<cv::Mat> input_sequen
 
 }
 
-cv::Mat core::ComputeCDF(cv::Mat &input_channel) {
+cv::Mat core::ComputeCDF(cv::Mat input_channel) {
 
 	cv::Mat cdf = cv::Mat::zeros(256, 1, CV_32FC1);
 
@@ -461,7 +464,7 @@ std::vector<cv::Mat> core::Miniature(std::vector<cv::Mat> &input_sequence, cv::M
 	return filtered_sequence;
 }
 
-std::vector<cv::Mat> core::ContrastStretching(std::vector<cv::Mat> input_sequence) {
+std::vector<cv::Mat> core::ContrastStretching(std::vector<cv::Mat>&input_sequence) {
 
 	std::vector<cv::Mat> stretched_senquance;
 	for (int i = 0; i < input_sequence.size(); i++) {
@@ -490,7 +493,7 @@ std::vector<cv::Mat> core::ContrastStretching(std::vector<cv::Mat> input_sequenc
 	return stretched_senquance;
 }
 
-cv::Mat core::AdjustBrightness(cv::Mat &input_image, float value) {
+cv::Mat core::AdjustBrightness(cv::Mat input_image, float value) {
 	std::vector<cv::Mat> adjusted_channels;
 	cv::Mat adjusted_image;
 	cv::cvtColor(input_image, adjusted_image, CV_BGR2YCrCb);
@@ -510,7 +513,7 @@ cv::Mat core::AdjustBrightness(cv::Mat &input_image, float value) {
 	return adjusted_image;
 }
 
-cv::Mat core::AdjustContrast(cv::Mat &input_image, float value) {
+cv::Mat core::AdjustContrast(cv::Mat input_image, float value) {
 
 	std::vector<cv::Mat> adjusted_channels;
 	cv::Mat adjusted_image;
@@ -531,23 +534,21 @@ cv::Mat core::AdjustContrast(cv::Mat &input_image, float value) {
 	return adjusted_image;
 }
 
-
 // ...... UNUSED FUNCTIONS 
 cv::Mat core::GenerateGammaLookupTable(double gamma) {
 	// Gamma correction for sRGB
 	cv::Mat gamma_lookup_table = cv::Mat::zeros(1, 256, CV_8UC1);
 	for (int i = 0; i < 256; i++) {
 		gamma_lookup_table.at<uint8_t>(0, i) = pow(i / 255.0, gamma) * 255.0;
-
-		//std::cout << std::to_string(gamma_lookup_table.at<uint8_t>(0, i)) << std::endl;
 	}
 	return gamma_lookup_table;
 }
 
-std::vector<cv::Mat> core::GammaCorrection(std::vector<cv::Mat> input_sequence, cv::Mat &gamma_lookup_table) {
+std::vector<cv::Mat> core::GammaCorrection(std::vector<cv::Mat>&input_sequence, cv::Mat &gamma_lookup_table) {
 
 	for (int i = 0; i < input_sequence.size(); i++) {
 		cv::Mat frame_corrected;
+		// Map the values using gammar lookup table
 		cv::LUT(input_sequence[i], gamma_lookup_table, frame_corrected);
 		input_sequence[i] = frame_corrected;
 	}

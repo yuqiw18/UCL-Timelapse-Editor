@@ -43,19 +43,19 @@ std::string utility::FilePathParser(std::string file_path) {
 		// For loading video footage
 		return file_path;
 	}
-
 }
 
 std::string utility::ConvertFPStoTime(int total_frames, int fps){
 	
+	// Estimate the video length using total frame and export fps
 	std::string h, m, s;
-	
 	int second = total_frames / fps;
 	int remain_second = second % 60;
 	int minute = (second-remain_second) / 60;
 	int remain_minute = minute % 60;
 	int hour = (minute-remain_minute) / 60;
 
+	// Format 
 	if (hour / 10 >= 1) {
 		h = std::to_string(hour);
 	}

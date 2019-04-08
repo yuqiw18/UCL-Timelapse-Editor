@@ -30,7 +30,8 @@ cvui(MIT License) https://github.com/Dovyski/cvui
 #define WINDOW_NAME "Time-Lapse Editor"
 #define WINDOW_WIDTH 850
 #define WINDOW_HEIGHT 600
-// State Machine (Non-OO)
+
+// State Machine (Non-OOP)
 const enum STATE { IDLE, LOAD, PROCESS, PLAY, SAVE };
 
 int main(void){
@@ -60,7 +61,7 @@ int main(void){
 
 	open_file_name.lpstrFile[0] = '\0';
 	open_file_name.nMaxFile = sizeof(szFile);
-	open_file_name.lpstrFilter = "All\0*.*\0Text\0*.TXT\0";
+	open_file_name.lpstrFilter = "All\0*.*\0";
 	open_file_name.nFilterIndex = 1;
 	open_file_name.lpstrFileTitle = NULL;
 	open_file_name.nMaxFileTitle = 0;
@@ -103,9 +104,9 @@ int main(void){
 	int sequence_length = 1;
 
 	// Load Vintage Filters
-	cv::VideoCapture input_mask("appdata/mask_v/mask_v-01.png");
+	cv::VideoCapture input_mask("appdata/mask_v/mask_v_01.png");
 	if (!input_mask.isOpened()) {
-		std::cout << "Cannot load vintage filters" << std::endl;
+		std::cout << "Cannot load vintage blotch masks" << std::endl;
 	}
 	else {
 		video_cache = input_mask;
@@ -125,9 +126,9 @@ int main(void){
 	}
 
 	// Load Miniature Filters
-	cv::VideoCapture input_mask_m("appdata/mask_m/mask_m-01.png");
+	cv::VideoCapture input_mask_m("appdata/mask_m/mask_m_01.png");
 	if (!input_mask_m.isOpened()) {
-		std::cout << "Cannot load miniature filters" << std::endl;
+		std::cout << "Cannot load miniature masks" << std::endl;
 	}
 	else {
 		video_cache = input_mask_m;
