@@ -26,7 +26,7 @@ cvui(MIT License) https://github.com/Dovyski/cvui
 #include "cvui/cvui.h"
 
 #define WINDOW_NAME "Time-Lapse Toolbox"
-#define WINDOW_WIDTH 1050
+#define WINDOW_WIDTH 850
 #define WINDOW_HEIGHT 600
 // State Machine (Non-OO)
 const enum STATE { IDLE, LOAD, PROCESS, PLAY, SAVE };
@@ -46,6 +46,10 @@ bool chk_motion_trail = false;
 int val_interp_frame = 0;
 int val_import_fps = 1;
 int val_export_fps = 60;
+
+int val_vintage_mode = 0;
+int val_miniature_mask = 0;
+int val_trail_color = 0;
 
 int main(void){
 	
@@ -92,7 +96,7 @@ int main(void){
 	std::vector<cv::Mat> processed_sequence;
 	std::vector<cv::Mat> optical_flow;
 	std::vector<cv::Mat> mask_vintage;
-	cv::Mat mask_miniature = cv::imread("appdata/mask_m/mask_m.png");
+	std::vector<cv::Mat> mask_miniature;
 	cv::Mat gamma_lookup_table = core::GenerateGammaLookupTable(2.2);
 
 	int current_frame = 0;
@@ -100,6 +104,7 @@ int main(void){
 
 	std::string PREVIEWER_BUTTON = "Play";
 
+	// Load Vintage Filters
 	cv::VideoCapture input_mask("appdata/mask_v/mask_v-01.png");
 	if (!input_mask.isOpened()) {
 		std::cout << "Cannot load vintage filters" << std::endl;
@@ -107,7 +112,6 @@ int main(void){
 	else {
 		video_cache = input_mask;
 	}
-
 	while (!INIT_VINTAGE_MASK) {
 		cv::Mat frame;
 		bool is_reading_video = video_cache.read(frame);
@@ -122,6 +126,29 @@ int main(void){
 		}
 	}
 
+	// Load Miniature Filters
+	cv::VideoCapture input_mask_m("appdata/mask_m/mask_m-01.png");
+	if (!input_mask_m.isOpened()) {
+		std::cout << "Cannot load miniature filters" << std::endl;
+	}
+	else {
+		video_cache = input_mask_m;
+	}
+	while (!INIT_MINIATURE_MASK) {
+		cv::Mat frame;
+		bool is_reading_video = video_cache.read(frame);
+		// If reach the end of video
+		if (!is_reading_video) {
+			INIT_MINIATURE_MASK = true;
+			video_cache.release();
+		}
+		else {
+			// Pass each frame to the image sequence vector
+			mask_miniature.push_back(frame);
+		}
+	}
+
+	// Main Program
 	while (true) {
 		
 		// GUI: Read & Save Files
@@ -163,12 +190,13 @@ int main(void){
 		cvui::text(gui, 12, 166, "FPS(O)");
 		cvui::trackbar(gui, 50, 149, 148, &val_export_fps, (int)1, (int)60, 1, "%.0Lf", cvui::TRACKBAR_DISCRETE, (int)1);
 
-		// GUI: Editor
+		// GUI: Retiming
 		cvui::window(gui, 6, 206, 190, 98, "Retiming (Interpolation)");
 		cvui::text(gui, 12, 247, "Frame");
 		cvui::trackbar(gui, 50, 230, 148, &val_interp_frame, (int)0, (int)60, 1, "%.0Lf", cvui::TRACKBAR_DISCRETE, (int)1);
 		cvui::checkbox(gui, 12, 282, "Image Enhancement", &chk_enhance);
 
+		// GUI: Visual Effect
 		cvui::window(gui, 6, 308, 190, 106, "Visual Effect");
 		cvui::checkbox(gui, 12, 336, "Vintage (Scenery)", &chk_vintage);
 		cvui::checkbox(gui, 12, 364, "Miniature (City)", &chk_miniature);
@@ -194,7 +222,7 @@ int main(void){
 
 				if (chk_enhance) {
 					processed_sequence = core::ContrastStretching(processed_sequence);
-					processed_sequence = core::EnhanceImage(processed_sequence);
+					//processed_sequence = core::EnhanceImage(processed_sequence);
 				}
 
 				if (chk_motion_trail) {
@@ -202,12 +230,11 @@ int main(void){
 				}
 
 				if (chk_miniature) {
-					processed_sequence = core::Miniature(processed_sequence, mask_miniature);
+					processed_sequence = core::Miniature(processed_sequence, mask_miniature[1]);
 				}
 
 				if (chk_vintage) {
 					processed_sequence = core::Vintage(processed_sequence, mask_vintage);
-					//processed_sequence = core::ContrastStretching(processed_sequence);
 				}
 
 				sequence_length = processed_sequence.size() - 1;
@@ -240,7 +267,14 @@ int main(void){
 		}
 
 		// GUI: Previwer
-		cvui::window(gui, 200, 6, 644, 504, "Preview [640x480@30FPS]");
+		if (!raw_sequence.empty()) {
+			std::string preiviewer_title = std::string("Preview [640x480@30FPS] ") + ":: Raw [" + std::to_string(processed_sequence.front().cols) + "x" + std::to_string(processed_sequence.front().rows) + "] Length(" + std::to_string(val_export_fps) + "FPS): " + utility::ConvertFPStoTime(processed_sequence.size(), val_export_fps);
+			cvui::window(gui, 200, 6, 644, 504, preiviewer_title);
+		}
+		else {
+			cvui::window(gui, 200, 6, 644, 504, "Preview [640x480@30FPS]");
+		}
+
 		if (raw_sequence.empty()) {
 			cvui::text(gui, 450, 256, "No Video/Images Loaded");
 		}
@@ -266,21 +300,7 @@ int main(void){
 				}
 			}
 		}
-		cvui::window(gui, 848, 6, 198, 92, "Footage Details");
-		if (!raw_sequence.empty()) {
-			cvui::text(gui, 856, 36, "Resolution: " + std::to_string(raw_sequence.front().cols) + "x" + std::to_string(raw_sequence.front().rows));
-			cvui::text(gui, 856, 56, "Frames: " + std::to_string(raw_sequence.size()));
-			cvui::text(gui, 856, 76, "Time (" + std::to_string(val_export_fps) + "FPS): " + utility::ConvertFPStoTime(raw_sequence.size(), val_export_fps));
-		}
-		else {
-			cvui::text(gui, 856, 36, "Resolution: N/A" );
-			cvui::text(gui, 856, 56, "Frames: N/A" );
-			cvui::text(gui, 856, 76, "Time (" + std::to_string(val_export_fps) + "FPS): N/A");
-		}
 
-		cvui::window(gui, 848, 102, 198, 256, "Filter Options");
-
-		/////////////////////////////////////////////
 		// Frame check
 		if (current_frame < 0) {
 			current_frame = 0;
