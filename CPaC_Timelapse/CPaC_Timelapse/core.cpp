@@ -10,7 +10,7 @@
 #include "core.h"
 #include "utility.h"
 
-std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> &raw_sequence, bool &use_cuda) {
+std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> &input_sequence, bool &use_cuda) {
 	
 	// Tic
 	std::cout << "@Computing Optical Flow (Dense)" << std::endl;
@@ -27,7 +27,7 @@ std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> &raw_sequence
 	// Initially used for multi-view video sprite with CUDA
 	//cv::Ptr<cv::cuda::DensePyrLKOpticalFlow> optical_flow_cuda = cv::cuda::DensePyrLKOpticalFlow::create(cv::Size(21, 21), 5, 20, true);
 
-	for (int i = 0; i < raw_sequence.size() - 1; i++) {
+	for (int i = 0; i < input_sequence.size() - 1; i++) {
 
 		if (use_cuda) {
 			/*
@@ -35,8 +35,8 @@ std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> &raw_sequence
 			cv::Mat flow;
 
 			// Assign frames to GPU memory
-			frame_previous.upload(raw_sequence[i]);
-			frame_next.upload(raw_sequence[i + 1]);
+			frame_previous.upload(input_sequence[i]);
+			frame_next.upload(input_sequence[i + 1]);
 
 			// Convert frames to grasacle using GPU
 			cv::cuda::cvtColor(frame_previous, frame_previous, CV_BGR2GRAY);
@@ -54,8 +54,8 @@ std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> &raw_sequence
 			cv::Mat f0, f1, flow;
 
 			// Convert frames to grasacle using CPU
-			cv::cvtColor(raw_sequence[i], f0, CV_BGR2GRAY);
-			cv::cvtColor(raw_sequence[i + 1], f1, CV_BGR2GRAY);
+			cv::cvtColor(input_sequence[i], f0, CV_BGR2GRAY);
+			cv::cvtColor(input_sequence[i + 1], f1, CV_BGR2GRAY);
 
 			// Compute optical flows between two frames using CPU
 			optical_flow_cv->calc(f0, f1, flow);
@@ -68,16 +68,16 @@ std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> &raw_sequence
 	// Toc
 	double time_taken = (clock() - start_time) / (double)CLOCKS_PER_SEC;
 	if (use_cuda) {
-		std::cout << "CUDA Optical Flow takes " + std::to_string(time_taken) + "s to complete " + std::to_string(raw_sequence.size() - 1) + " optical flows" << std::endl;
+		std::cout << "CUDA Optical Flow takes " + std::to_string(time_taken) + "s to complete " + std::to_string(input_sequence.size() - 1) + " optical flows" << std::endl;
 	}
 	else {
-		std::cout << "CPU Optical Flow takes " + std::to_string(time_taken) + "s to complete " + std::to_string(raw_sequence.size() - 1) + " optical flows" << std::endl;
+		std::cout << "CPU Optical Flow takes " + std::to_string(time_taken) + "s to complete " + std::to_string(input_sequence.size() - 1) + " optical flows" << std::endl;
 	}
 
 	return optical_flow;
 }
 
-std::vector<cv::Mat> core::RetimeSequence(std::vector<cv::Mat> &raw_sequence, std::vector<cv::Mat> &optical_flow, int &interpolation_frames) {
+std::vector<cv::Mat> core::RetimeSequence(std::vector<cv::Mat> &input_sequence, std::vector<cv::Mat> &optical_flow, int &interpolation_frames) {
 	
 	// Tic
 	std::cout << "@Retiming Timelapse" << std::endl;
@@ -85,12 +85,12 @@ std::vector<cv::Mat> core::RetimeSequence(std::vector<cv::Mat> &raw_sequence, st
 
 	std::vector<cv::Mat> processed_sequence;
 
-	for (int i = 0; i < raw_sequence.size()-1; i++) {
+	for (int i = 0; i < input_sequence.size()-1; i++) {
 	
 		cv::Mat current_flow = optical_flow[i];
 
 		// Add original frame to the output sequence
-		processed_sequence.push_back(raw_sequence[i]);
+		processed_sequence.push_back(input_sequence[i]);
 
 		for (int f = 1; f < interpolation_frames + 1; f++) {
 
@@ -100,10 +100,10 @@ std::vector<cv::Mat> core::RetimeSequence(std::vector<cv::Mat> &raw_sequence, st
 
 			// Convert optical flow structure for image warping
 			std::vector<cv::Mat> flow_xy1 = ConvertFlowXY(-current_flow * alpha);
-			cv::remap(raw_sequence[i], f0, flow_xy1[0], flow_xy1[1], cv::INTER_LINEAR, cv::BORDER_REPLICATE);
+			cv::remap(input_sequence[i], f0, flow_xy1[0], flow_xy1[1], cv::INTER_LINEAR, cv::BORDER_REPLICATE);
 
 			std::vector<cv::Mat> flow_xy2 = ConvertFlowXY(current_flow * (1.0f - alpha));
-			cv::remap(raw_sequence[i + 1], f1, flow_xy2[0], flow_xy2[1], cv::INTER_LINEAR, cv::BORDER_REPLICATE);
+			cv::remap(input_sequence[i + 1], f1, flow_xy2[0], flow_xy2[1], cv::INTER_LINEAR, cv::BORDER_REPLICATE);
 
 			// Weight interpolated frame
 			frame_interp = (1.0f - alpha) * f0 + alpha * f1;
@@ -115,7 +115,7 @@ std::vector<cv::Mat> core::RetimeSequence(std::vector<cv::Mat> &raw_sequence, st
 
 	// Toc
 	double time_taken = (clock() - start_time) / (double)CLOCKS_PER_SEC;
-	std::cout << "Retiming Task takes " + std::to_string(time_taken) + "s to complete " + std::to_string((raw_sequence.size() - 1)* interpolation_frames) + " frames" << std::endl;
+	std::cout << "Retiming Task takes " + std::to_string(time_taken) + "s to complete " + std::to_string((input_sequence.size() - 1)* interpolation_frames) + " frames" << std::endl;
 
 	return processed_sequence;
 
@@ -212,8 +212,8 @@ std::vector<cv::Mat> core::ApplyMotionTrail(std::vector<cv::Mat>input_sequence, 
 
 	std::vector<cv::Mat> blended_sequence;
 
-	// A. Blending with intensity losing but gives better quality
-	double alpha = 0.15;
+	// A. Classic blending with intensity losing but gives better quality
+	double alpha = 0.2;
 	double beta = (1.0 - alpha);
 
 	// B. Alpha blending without losing intensity but gives artefacts
@@ -227,6 +227,8 @@ std::vector<cv::Mat> core::ApplyMotionTrail(std::vector<cv::Mat>input_sequence, 
 
 		// Method A.
 		cv::addWeighted(motion_trail_coloured, alpha, input_frame, beta, 0.0, frame_blended);
+		// Manually adjust the brightness and apply the contrast stretching outside to solve the intensity losing issue
+		frame_blended = AdjustBrightness(frame_blended, (float)alpha);
 
 		// Method B.
 		/*
@@ -254,11 +256,7 @@ std::vector<cv::Mat> core::ApplyMotionTrail(std::vector<cv::Mat>input_sequence, 
 	return blended_sequence;
 }
 
-std::vector<cv::Mat> core::HistogramAnalysis(std::vector<cv::Mat> input_sequence) {
-
-	// Tic
-	std::cout << "@Matching Histogram" << std::endl;
-	clock_t start_time = std::clock();
+std::vector<cv::Mat> core::BrightnessSmoothing(std::vector<cv::Mat> input_sequence) {
 
 	std::vector<cv::Mat> enhanced_senquance;
 
@@ -296,10 +294,6 @@ std::vector<cv::Mat> core::HistogramAnalysis(std::vector<cv::Mat> input_sequence
 
 		enhanced_senquance.push_back(frame_matched);
 	}
-
-	// Toc
-	double time_taken = (clock() - start_time) / (double)CLOCKS_PER_SEC;
-	std::cout << "Elapsed time is " + std::to_string(time_taken) + "s " << std::endl;
 
 	return enhanced_senquance;
 
@@ -469,10 +463,6 @@ std::vector<cv::Mat> core::Miniature(std::vector<cv::Mat> &input_sequence, cv::M
 
 std::vector<cv::Mat> core::ContrastStretching(std::vector<cv::Mat> input_sequence) {
 
-	// Tic
-	std::cout << "@Stretching Contrast" << std::endl;
-	clock_t start_time = std::clock();
-
 	std::vector<cv::Mat> stretched_senquance;
 	for (int i = 0; i < input_sequence.size(); i++) {
 
@@ -497,12 +487,50 @@ std::vector<cv::Mat> core::ContrastStretching(std::vector<cv::Mat> input_sequenc
 		stretched_senquance.push_back(stretched_frame);
 	}
 
-	// Toc
-	double time_taken = (clock() - start_time) / (double)CLOCKS_PER_SEC;
-	std::cout << "Elapsed time is " + std::to_string(time_taken) + "s " << std::endl;
-
 	return stretched_senquance;
 }
+
+cv::Mat core::AdjustBrightness(cv::Mat &input_image, float value) {
+	std::vector<cv::Mat> adjusted_channels;
+	cv::Mat adjusted_image;
+	cv::cvtColor(input_image, adjusted_image, CV_BGR2YCrCb);
+	cv::split(adjusted_image, adjusted_channels);
+
+	// Positive -> increase
+	// Negative -> decrease
+	adjusted_channels[0] += (int)(value * 255);
+
+	// Limit the values between [0,255]
+	cv::threshold(adjusted_channels[0], adjusted_channels[0], 255, 255, cv::THRESH_TRUNC);
+	cv::threshold(adjusted_channels[0], adjusted_channels[0], 0, 255, cv::THRESH_TOZERO);
+
+	cv::merge(adjusted_channels, adjusted_image);
+	cv::cvtColor(adjusted_image, adjusted_image, CV_YCrCb2BGR);
+
+	return adjusted_image;
+}
+
+cv::Mat core::AdjustContrast(cv::Mat &input_image, float value) {
+
+	std::vector<cv::Mat> adjusted_channels;
+	cv::Mat adjusted_image;
+	cv::cvtColor(input_image, adjusted_image, CV_BGR2YCrCb);
+	cv::split(adjusted_image, adjusted_channels);
+
+	// >1 -> increase
+	// (0,1)-> decrease
+	adjusted_channels[0] *= value;
+
+	// Limit the values between [0,255]
+	cv::threshold(adjusted_channels[0], adjusted_channels[0], 255, 255, cv::THRESH_TRUNC);
+	cv::threshold(adjusted_channels[0], adjusted_channels[0], 0, 255, cv::THRESH_TOZERO);
+
+	cv::merge(adjusted_channels, adjusted_image);
+	cv::cvtColor(adjusted_image, adjusted_image, CV_YCrCb2BGR);
+
+	return adjusted_image;
+}
+
 
 // ...... UNUSED FUNCTIONS 
 cv::Mat core::GenerateGammaLookupTable(double gamma) {
@@ -516,14 +544,14 @@ cv::Mat core::GenerateGammaLookupTable(double gamma) {
 	return gamma_lookup_table;
 }
 
-std::vector<cv::Mat> core::GammaCorrection(std::vector<cv::Mat> raw_sequence, cv::Mat &gamma_lookup_table) {
+std::vector<cv::Mat> core::GammaCorrection(std::vector<cv::Mat> input_sequence, cv::Mat &gamma_lookup_table) {
 
-	for (int i = 0; i < raw_sequence.size(); i++) {
+	for (int i = 0; i < input_sequence.size(); i++) {
 		cv::Mat frame_corrected;
-		cv::LUT(raw_sequence[i], gamma_lookup_table, frame_corrected);
-		raw_sequence[i] = frame_corrected;
+		cv::LUT(input_sequence[i], gamma_lookup_table, frame_corrected);
+		input_sequence[i] = frame_corrected;
 	}
 
-	return raw_sequence;
+	return input_sequence;
 }
 

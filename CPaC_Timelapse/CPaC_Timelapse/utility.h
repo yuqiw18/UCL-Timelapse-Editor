@@ -8,8 +8,4 @@ namespace utility {
 
 	std::string FilePathParser(std::string file_path);
 	std::string ConvertFPStoTime(int total_frames, int fps);
-
-	cv::Mat im2uint8(cv::Mat mat);
-	cv::Mat im2single(cv::Mat mat);
-	cv::Mat im2double(cv::Mat mat);
 }

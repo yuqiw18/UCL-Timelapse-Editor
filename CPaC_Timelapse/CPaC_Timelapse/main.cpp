@@ -7,6 +7,8 @@ Coded By Yuqi Wang (18043263)
 */
 
 /*
+** A Simple Time-Lapse Editor **
+
 *Runtime: WINDOWS 10 X64 + OpenCV 3.4.4 + VS2017(v15)
 OpenCV Binaries: https://opencv.org/opencv-4-0-0.html
 
@@ -78,7 +80,7 @@ int main(void){
 	std::vector<cv::Mat> optical_flow;
 	std::vector<cv::Mat> mask_vintage;
 	std::vector<cv::Mat> mask_miniature;
-	cv::Mat gamma_lookup_table = core::GenerateGammaLookupTable(2.2);
+	//cv::Mat gamma_lookup_table = core::GenerateGammaLookupTable(2.2);
 
 	std::string EXPORT_PATH = "";
 	std::string IMPORT_PATH = "";
@@ -223,21 +225,24 @@ int main(void){
 					
 				}
 				if (chk_brightness) {
-					processed_sequence = core::HistogramAnalysis(processed_sequence);
+					processed_sequence = core::BrightnessSmoothing(processed_sequence);
 				}
 
 				// Postprocessing
 				if (chk_motion_trail) {
 					processed_sequence = core::ApplyMotionTrail(processed_sequence, core::GenerateMotionTrail(processed_sequence));
+					// Recover the intensity loss
+					processed_sequence = core::ContrastStretching(processed_sequence);
 				}
 
 				if (chk_miniature) {
-					processed_sequence = core::Miniature(processed_sequence, mask_miniature[4]);
+					// User selection and custom ROI has not yet implemented due to time constraint
+					// Manually adjust the value for testing
+					processed_sequence = core::Miniature(processed_sequence, mask_miniature[1]);
 				}
 
 				if (chk_vintage) {
 					processed_sequence = core::Vintage(processed_sequence, mask_vintage);
-
 				}
 
 				sequence_length = processed_sequence.size() - 1;
@@ -388,7 +393,5 @@ int main(void){
 			break;
 		}
 	}
-
 	return 0;
-
 }
