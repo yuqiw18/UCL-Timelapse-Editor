@@ -31,36 +31,17 @@ cvui(MIT License) https://github.com/Dovyski/cvui
 // State Machine (Non-OO)
 const enum STATE { IDLE, LOAD, PROCESS, PLAY, SAVE };
 
-std::string EXPORT_PATH ="";
-std::string IMPORT_PATH = "";
-
-bool INIT_VINTAGE_MASK = false;
-bool INIT_MINIATURE_MASK = false;
-bool HAS_CUDA = false;
-bool USE_CUDA = false;
-
-bool chk_enhance = false;
-bool chk_vintage = false;
-bool chk_miniature = false;
-bool chk_motion_trail = false;
-int val_interp_frame = 0;
-int val_import_fps = 1;
-int val_export_fps = 60;
-
-int val_vintage_mode = 0;
-int val_miniature_mask = 0;
-int val_trail_color = 0;
-
 int main(void){
 	
 	STATE CURRENT_STATE = STATE::IDLE;
-	
 	srand(time(NULL));
 
+	/*
 	if (cv::cuda::getCudaEnabledDeviceCount() != 0) {
 		HAS_CUDA = true;
 		USE_CUDA = true;
 	}
+	*/
 
 	// File browser
 	// Reference: https://docs.microsoft.com/en-us/windows/desktop/api/commdlg/nf-commdlg-getopenfilenamea
@@ -99,10 +80,24 @@ int main(void){
 	std::vector<cv::Mat> mask_miniature;
 	cv::Mat gamma_lookup_table = core::GenerateGammaLookupTable(2.2);
 
+	std::string EXPORT_PATH = "";
+	std::string IMPORT_PATH = "";
+	std::string PREVIEWER_BUTTON = "Play";
+
+	bool INIT_VINTAGE_MASK = false;
+	bool INIT_MINIATURE_MASK = false;
+	bool HAS_CUDA = false;
+	bool USE_CUDA = false;
+
+	bool chk_enhance = false;
+	bool chk_vintage = false;
+	bool chk_miniature = false;
+	bool chk_motion_trail = false;
+	int val_interp_frame = 0;
+	int val_import_fps = 1;
+	int val_export_fps = 60;
 	int current_frame = 0;
 	int sequence_length = 1;
-
-	std::string PREVIEWER_BUTTON = "Play";
 
 	// Load Vintage Filters
 	cv::VideoCapture input_mask("appdata/mask_v/mask_v-01.png");

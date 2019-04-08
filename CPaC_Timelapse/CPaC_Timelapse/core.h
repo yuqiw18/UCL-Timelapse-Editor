@@ -10,9 +10,6 @@ namespace core {
 	std::vector<cv::Mat> ContrastStretching(std::vector<cv::Mat> input_sequence);
 	cv::Mat ComputeCDF(cv::Mat &input_channel);
 	cv::Mat HistogramMatching(cv::Mat input_frame, cv::Mat cdf_source, cv::Mat cdf_target);
-	
-
-	cv::Mat AverageIntensity(std::vector<cv::Mat> input_channels);
 
 	std::vector<cv::Mat> GammaCorrection(std::vector<cv::Mat> raw_sequence, cv::Mat &gamma_lookup_table);
 	cv::Mat GenerateGammaLookupTable(double gamma);

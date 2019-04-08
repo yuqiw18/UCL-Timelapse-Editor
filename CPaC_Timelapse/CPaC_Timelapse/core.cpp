@@ -1,9 +1,12 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
-#include <opencv2/core/cuda.hpp>
-#include <opencv2/cudaoptflow.hpp>
-#include <opencv2/cudaimgproc.hpp>
 #include <math.h>
+
+// Only usable for OpenCV CUDA Binary
+//#include <opencv2/core/cuda.hpp>
+//#include <opencv2/cudaoptflow.hpp>
+//#include <opencv2/cudaimgproc.hpp>
+
 #include "core.h"
 #include "utility.h"
 
@@ -17,38 +20,42 @@ std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> &raw_sequence
 
 	// Create Farneback optical flow operator
 	cv::Ptr<cv::FarnebackOpticalFlow> optical_flow_cv = cv::FarnebackOpticalFlow::create(5, 0.5, false, 15, 5);
-	cv::Ptr< cv::cuda::FarnebackOpticalFlow> optical_flow_cuda = cv::cuda::FarnebackOpticalFlow::create(5,0.5,false,15,5);
+	
+	// Only usable for OpenCV CUDA Binary
+	//cv::Ptr< cv::cuda::FarnebackOpticalFlow> optical_flow_cuda = cv::cuda::FarnebackOpticalFlow::create(5, 0.5, false, 15, 5);
 
-	// Initially used for multi-view video sprite
+	// Initially used for multi-view video sprite with CUDA
 	//cv::Ptr<cv::cuda::DensePyrLKOpticalFlow> optical_flow_cuda = cv::cuda::DensePyrLKOpticalFlow::create(cv::Size(21, 21), 5, 20, true);
 
 	for (int i = 0; i < raw_sequence.size() - 1; i++) {
 
-		if (use_cuda){
-		cv::cuda::GpuMat frame_previous, frame_next, frame_flow;
-		cv::Mat flow;
+		if (use_cuda) {
+			/*
+			cv::cuda::GpuMat frame_previous, frame_next, frame_flow;
+			cv::Mat flow;
 
-		// Assign frames to GPU memory
-		frame_previous.upload(raw_sequence[i]);
-		frame_next.upload(raw_sequence[i + 1]);
+			// Assign frames to GPU memory
+			frame_previous.upload(raw_sequence[i]);
+			frame_next.upload(raw_sequence[i + 1]);
 
-		// Convert frames to grasacle using GPU
-		cv::cuda::cvtColor(frame_previous, frame_previous, CV_BGR2GRAY);
-		cv::cuda::cvtColor(frame_next, frame_next, CV_BGR2GRAY);
+			// Convert frames to grasacle using GPU
+			cv::cuda::cvtColor(frame_previous, frame_previous, CV_BGR2GRAY);
+			cv::cuda::cvtColor(frame_next, frame_next, CV_BGR2GRAY);
 
-		// Compute optical flows between two frames using GPU
-		optical_flow_cuda->calc(frame_previous, frame_next, frame_flow);
+			// Compute optical flows between two frames using GPU
+			optical_flow_cuda->calc(frame_previous, frame_next, frame_flow);
 
-		// Get results from GPU memory and save them
-		frame_flow.download(flow);
-		optical_flow.push_back(flow);
-
-		}else {
+			// Get results from GPU memory and save them
+			frame_flow.download(flow);
+			optical_flow.push_back(flow);
+			*/
+		}
+		else {
 			cv::Mat f0, f1, flow;
-			
+
 			// Convert frames to grasacle using CPU
 			cv::cvtColor(raw_sequence[i], f0, CV_BGR2GRAY);
-			cv::cvtColor(raw_sequence[i+1], f1, CV_BGR2GRAY);
+			cv::cvtColor(raw_sequence[i + 1], f1, CV_BGR2GRAY);
 
 			// Compute optical flows between two frames using CPU
 			optical_flow_cv->calc(f0, f1, flow);
@@ -59,13 +66,14 @@ std::vector<cv::Mat> core::ComputeOpticalFlow(std::vector<cv::Mat> &raw_sequence
 	}
 
 	// Toc
-	double time_taken = (clock() - start_time) / (double)CLOCKS_PER_SEC;	
+	double time_taken = (clock() - start_time) / (double)CLOCKS_PER_SEC;
 	if (use_cuda) {
-		std::cout << "CUDA Optical Flow takes " + std::to_string(time_taken) + "s to complete " + std::to_string(raw_sequence.size()-1) + " optical flows" << std::endl;
-	}else{
-		std::cout << "CPU Optical Flow takes " + std::to_string(time_taken) + "s to complete " + std::to_string(raw_sequence.size()-1) + " optical flows" << std::endl;
+		std::cout << "CUDA Optical Flow takes " + std::to_string(time_taken) + "s to complete " + std::to_string(raw_sequence.size() - 1) + " optical flows" << std::endl;
 	}
-	
+	else {
+		std::cout << "CPU Optical Flow takes " + std::to_string(time_taken) + "s to complete " + std::to_string(raw_sequence.size() - 1) + " optical flows" << std::endl;
+	}
+
 	return optical_flow;
 }
 
