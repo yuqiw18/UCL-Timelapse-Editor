@@ -124,6 +124,8 @@ std::vector<cv::Mat> core::RetimeSequence(std::vector<cv::Mat> &raw_sequence, st
 std::vector<cv::Mat> core::ConvertFlowXY(cv::Mat optical_flow) {
 
 	cv::Mat flow(optical_flow.size(), CV_32FC2);
+	// In MATLAB we can simply use the Vy, Vx with imwrap()
+	// In OpenCV we need to convert the optical flow Vy, Vx to the format that can be used by remap() function
 	for (int y = 0; y < flow.rows; y++)
 	{
 		for (int x = 0; x < flow.cols; x++)
@@ -145,33 +147,37 @@ std::vector<cv::Mat> core::GenerateMotionTrail(std::vector<cv::Mat>input_sequenc
 	std::cout << "@Generating Motion Trail" << std::endl;
 	clock_t start_time = std::clock();
 
+	// Compute the motion between each two coninuous frames
 	std::vector<cv::Mat> motion_sequence;
-
 	for (int i = 0; i < input_sequence.size()-1; i++) {
+		// Compute frame difference
 		cv::Mat frame_prev, frame_next;
 		cv::cvtColor(input_sequence[i], frame_prev, CV_BGR2GRAY);
 		cv::cvtColor(input_sequence[i+1], frame_next, CV_BGR2GRAY);
 
+		// Only keep the "tail" part rather than using absolute value
 		cv::Mat motion = -(frame_prev- frame_next);
 
+		// Convert back to BGR
 		cv::cvtColor(motion, motion, CV_GRAY2BGR);
 		motion_sequence.push_back(motion);
 	}
 
+	// Last frame contains nothing but we need to keep the sequence size consistent
 	cv::Mat motion_frame_last = cv::Mat::zeros(motion_sequence.front().size(), motion_sequence.front().type());
 	motion_sequence.push_back(motion_frame_last);
 
+	// Form the trail using a number of frames
 	std::vector<cv::Mat> motion_sequence_merge;
-
 	for (int i = 0; i < motion_sequence.size(); i++) {
 	
+		// Use 10%
 		int motion_interval = 0.1 * input_sequence.size();
-		cv::Mat motion_trail = cv::Mat::zeros(motion_sequence.front().size(), CV_8UC3);
-		cv::cuda::GpuMat motion_trail_cuda;
 
+		// Weight the "tail"s to form the trail
+		cv::Mat motion_trail = cv::Mat::zeros(motion_sequence.front().size(), CV_8UC3);
 		if (i < motion_interval) {
 			for (int f = 0; f < i; f++) {
-
 				motion_trail += ((float)i - (float)f) / (float)i * motion_sequence[i - f];
 			}
 		}
@@ -181,9 +187,12 @@ std::vector<cv::Mat> core::GenerateMotionTrail(std::vector<cv::Mat>input_sequenc
 			}
 		}
 
+		// Make sure the values are between [0,255];
 		cv::Mat motion_trail_adjusted;
 		cv::normalize(motion_trail, motion_trail_adjusted, 0, 255, cv::NORM_MINMAX);
-		cv::applyColorMap(motion_trail_adjusted, motion_trail_adjusted, cv::COLORMAP_HOT);
+
+		// Threshold to remove insignificant motions
+		cv::threshold(motion_trail_adjusted, motion_trail_adjusted, 23, 255, cv::THRESH_TOZERO);
 		motion_sequence_merge.push_back(motion_trail_adjusted);
 	}
 
@@ -203,16 +212,38 @@ std::vector<cv::Mat> core::ApplyMotionTrail(std::vector<cv::Mat>input_sequence, 
 
 	std::vector<cv::Mat> blended_sequence;
 
-	double alpha = 0.2;
+	// A. Blending with intensity losing but gives better quality
+	double alpha = 0.24;
 	double beta = (1.0 - alpha);
+
+	// B. Alpha blending without losing intensity but gives artefacts
+	int transparency = 255 * alpha;
 
 	for (int i = 0; i < input_sequence.size(); i++) {
 
-		/*cv::Mat frame_current;
-		cv::cvtColor(input_sequence[i], frame_current, CV_BGR2GRAY);
-		cv::cvtColor(frame_current, frame_current, CV_GRAY2BGR);*/
-		cv::Mat frame_blended;
-		cv::addWeighted(motion_trail[i], alpha, input_sequence[i], beta, 0.0, frame_blended);
+		cv::Mat frame_blended, motion_trail_alpha, motion_trail_coloured;
+		cv::Mat input_frame = input_sequence[i];
+		cv::applyColorMap(motion_trail[i], motion_trail_coloured, cv::COLORMAP_HOT);
+
+		// Method A.
+		cv::addWeighted(motion_trail_coloured, alpha, input_frame, beta, 0.0, frame_blended);
+
+		// Method B.
+		/*
+		input_frame.convertTo(input_frame, CV_32FC3);
+		motion_trail_coloured.convertTo(motion_trail_coloured, CV_32FC3);
+		// Get alpha mask
+		motion_trail_alpha = motion_trail[i];
+		motion_trail_alpha.convertTo(motion_trail_alpha, CV_32FC3, 1.0 / 255.0);
+		// Get the motion trail precisely using mask
+		cv::multiply(motion_trail_alpha, motion_trail_coloured, motion_trail_coloured);
+		// Adjust regions in frame for motion trail using (1.0-alpha)
+		cv::multiply(cv::Scalar::all(1.0) - motion_trail_alpha, input_frame, input_frame);
+		// Merge the frame with motion trail
+		cv::add(motion_trail_coloured, input_frame, frame_blended);
+		frame_blended.convertTo(frame_blended, CV_8UC3);
+		*/
+
 		blended_sequence.push_back(frame_blended);
 	}
 
@@ -223,10 +254,10 @@ std::vector<cv::Mat> core::ApplyMotionTrail(std::vector<cv::Mat>input_sequence, 
 	return blended_sequence;
 }
 
-std::vector<cv::Mat> core::EnhanceImage(std::vector<cv::Mat> input_sequence) {
+std::vector<cv::Mat> core::HistogramAnalysis(std::vector<cv::Mat> input_sequence) {
 
 	// Tic
-	std::cout << "@Enhancing Images" << std::endl;
+	std::cout << "@Matching Histogram" << std::endl;
 	clock_t start_time = std::clock();
 
 	std::vector<cv::Mat> enhanced_senquance;
@@ -255,18 +286,15 @@ std::vector<cv::Mat> core::EnhanceImage(std::vector<cv::Mat> input_sequence) {
 		cv::Mat target_frame_intensity, source_frame_intensity;
 		target_frame_channels[0].convertTo(target_frame_intensity, CV_32FC1);
 		source_frame_channels[0].convertTo(source_frame_intensity, CV_32FC1);
-		
 		cv::Mat cdf_target_norm = ComputeCDF(target_frame_intensity)/(float)pixel_count;
 		cv::Mat cdf_source_norm = ComputeCDF(source_frame_intensity)/(float)pixel_count;
 
+		// Match the histogram and merge the channel back to the frame
 		source_frame_channels[0] = HistogramMatching(source_frame_channels[0], cdf_source_norm, cdf_target_norm);
-
 		merge(source_frame_channels, frame_matched);
-
 		cv::cvtColor(frame_matched, frame_matched, CV_YCrCb2BGR);
 
 		enhanced_senquance.push_back(frame_matched);
-
 	}
 
 	// Toc
@@ -305,8 +333,11 @@ cv::Mat core::HistogramMatching(cv::Mat intensity_source, cv::Mat cdf_source, cv
 	for (int i = 0; i < 256; i++) {
 		cv::Mat cdf_difference;
 		int min_idx[2] = {255,255};
+		// Get CDF difference
 		cdf_difference = cv::abs(cdf_source.at<float>(i, 0) - cdf_target);
+		// Find the smallest intensity value
 		cv::minMaxIdx(cdf_difference, NULL, NULL, min_idx, NULL);
+		// Assign the value to the intensity table
 		cdf_matched.at<float>(i, 0) = (float)min_idx[0];
 	}
 
@@ -408,23 +439,24 @@ std::vector<cv::Mat> core::Miniature(std::vector<cv::Mat> &input_sequence, cv::M
 		cv::Mat blurred_mask, blurred_frame;
 		cv::Mat filtered_frame = cv::Mat::zeros(input_sequence.front().size(), input_sequence.front().type());
 
+		// Use Gaussian blur
 		cv::GaussianBlur(mask, blurred_mask, cv::Size(7, 7), 0, 0, cv::BORDER_REPLICATE);
 		cv::GaussianBlur(input_sequence[i], blurred_frame, cv::Size(7, 7), 0, 0, cv::BORDER_REPLICATE);
 
+		// Blur the entire frame and get the centre of focus clear using unblurred frame with boundary smoothing
 		for (int x = 0; x < filtered_frame.rows; x++){
 			for (int y = 0; y < filtered_frame.cols; y++){
 
 				cv::Vec3b input_pixel = input_sequence[i].at<cv::Vec3b>(x, y);
 				cv::Vec3b blurred_pixel = blurred_frame.at<cv::Vec3b>(x, y);
-				uchar mask_pixel = blurred_mask.at<uchar>(x, y);
+				float mask_pixel = blurred_mask.at<uchar>(x, y);
 
 				float alpha = mask_pixel / 255.0;
 				float beta = 1.0 - alpha;
-
-				filtered_frame.at<cv::Vec3b>(x, y) = beta * input_pixel + alpha * blurred_pixel;
+				filtered_frame.at<cv::Vec3b>(x, y) = alpha * blurred_pixel + beta * input_pixel;
 			}
 		}
-		//cv::cvtColor(blurred_mask, blurred_mask, CV_GRAY2BGR);
+
 		filtered_sequence.push_back(filtered_frame);
 	}
 	
@@ -436,6 +468,10 @@ std::vector<cv::Mat> core::Miniature(std::vector<cv::Mat> &input_sequence, cv::M
 }
 
 std::vector<cv::Mat> core::ContrastStretching(std::vector<cv::Mat> input_sequence) {
+
+	// Tic
+	std::cout << "@Stretching Contrast" << std::endl;
+	clock_t start_time = std::clock();
 
 	std::vector<cv::Mat> stretched_senquance;
 	for (int i = 0; i < input_sequence.size(); i++) {
@@ -460,6 +496,11 @@ std::vector<cv::Mat> core::ContrastStretching(std::vector<cv::Mat> input_sequenc
 
 		stretched_senquance.push_back(stretched_frame);
 	}
+
+	// Toc
+	double time_taken = (clock() - start_time) / (double)CLOCKS_PER_SEC;
+	std::cout << "Elapsed time is " + std::to_string(time_taken) + "s " << std::endl;
+
 	return stretched_senquance;
 }
 

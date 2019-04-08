@@ -7,8 +7,8 @@ Coded By Yuqi Wang (18043263)
 */
 
 /*
-*Runtime: WINDOWS 10 X64 + OpenCV 3.4 + CUDA 9.1 + VS2017(v15)
-OpenCV CUDA Binaries: https://jamesbowley.co.uk/downloads/
+*Runtime: WINDOWS 10 X64 + OpenCV 3.4.4 + VS2017(v15)
+OpenCV Binaries: https://opencv.org/opencv-4-0-0.html
 
 *External Framework/Library/Plugin:
 cvui(MIT License) https://github.com/Dovyski/cvui
@@ -149,7 +149,7 @@ int main(void){
 		// GUI: Read & Save Files
 		cvui::window(gui, 6, 6, 190, 196, "File");
 		if (cvui::button(gui, 12, 32, 178, 32,"Import (Video/Image)")) {
-			open_file_name.lpstrFilter = "All\0*.*\0Text\0*.TXT\0";
+			open_file_name.lpstrFilter = "All\0*.*\0";
 			if (GetOpenFileName(&open_file_name) == TRUE) {
 
 				// Reset variables
@@ -215,22 +215,27 @@ int main(void){
 					processed_sequence = core::RetimeSequence(processed_sequence, optical_flow, val_interp_frame);
 				}
 
+				// Preprocessing
 				if (chk_enhance) {
+					
+					processed_sequence = core::HistogramAnalysis(processed_sequence);
 					processed_sequence = core::ContrastStretching(processed_sequence);
-					//processed_sequence = core::EnhanceImage(processed_sequence);
 				}
 
+				// Postprocessing
 				if (chk_motion_trail) {
 					processed_sequence = core::ApplyMotionTrail(processed_sequence, core::GenerateMotionTrail(processed_sequence));
 				}
 
 				if (chk_miniature) {
-					processed_sequence = core::Miniature(processed_sequence, mask_miniature[1]);
+					processed_sequence = core::Miniature(processed_sequence, mask_miniature[4]);
 				}
 
 				if (chk_vintage) {
 					processed_sequence = core::Vintage(processed_sequence, mask_vintage);
+
 				}
+				processed_sequence = core::ContrastStretching(processed_sequence);
 
 				sequence_length = processed_sequence.size() - 1;
 			}
@@ -258,7 +263,7 @@ int main(void){
 			cvui::checkbox(gui, 12, 550, "Use CUDA", &USE_CUDA);
 		}
 		else {
-			cvui::text(gui, 12, 550, "No CUDA Device");
+			cvui::text(gui, 12, 552, "CUDA Disabled");
 		}
 
 		// GUI: Previwer

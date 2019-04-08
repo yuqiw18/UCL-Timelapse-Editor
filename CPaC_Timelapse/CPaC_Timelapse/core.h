@@ -6,7 +6,7 @@ namespace core {
 	std::vector<cv::Mat> ConvertFlowXY(cv::Mat optical_flow);
 	std::vector<cv::Mat> RetimeSequence(std::vector<cv::Mat> &raw_sequence, std::vector<cv::Mat> &optical_flow, int &interpolation_frames);
 
-	std::vector<cv::Mat> EnhanceImage(std::vector<cv::Mat> input_sequence);
+	std::vector<cv::Mat> HistogramAnalysis(std::vector<cv::Mat> input_sequence);
 	std::vector<cv::Mat> ContrastStretching(std::vector<cv::Mat> input_sequence);
 	cv::Mat ComputeCDF(cv::Mat &input_channel);
 	cv::Mat HistogramMatching(cv::Mat input_frame, cv::Mat cdf_source, cv::Mat cdf_target);
